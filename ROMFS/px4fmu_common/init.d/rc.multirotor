@@ -16,7 +16,7 @@ sh /etc/init.d/rc.logging
 #
 # Start GPS interface (depends on orb)
 #
-gps start
+#gps start
 
 #
 # Start the attitude estimator

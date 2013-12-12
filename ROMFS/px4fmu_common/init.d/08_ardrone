@@ -36,6 +36,7 @@ param set BAT_V_SCALING 0.008381
 # Start MAVLink
 #
 mavlink start -d /dev/ttyS0 -b 57600
+mavlink_onboard start -d /dev/ttyS3 -b 115200
 usleep 5000
 
 #
