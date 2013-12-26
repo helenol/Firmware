@@ -3,15 +3,16 @@
 
 #include <drivers/drv_hrt.h>
 
-
 class SonarPrefilter {
   public:
     SonarPrefilter();
+    void init(uint64_t t);
+
     void addMeasurement(uint64_t t, float sonar);
     void getLatestUpdate(uint64_t t, float* sonar, float* sigma);
 
   private:
-    static const float msecToSec(uint64_t t);
+    static float msecToSec(uint64_t t);
 
     // Parameters.
     float high_cutoff;
@@ -26,8 +27,17 @@ class SonarPrefilter {
     uint64_t last_time;
 };
 
-const float SonarPrefilter::msecToSec(uint64_t t) {
-    return t/1000000.0;
+SonarPrefilter::SonarPrefilter()
+    : high_cutoff(3.8), low_cutoff(0.32), sigma_sonar(0.01), sigma_sonar_bad(2),
+      max_speed(20), last_good_val(0.3), last_sigma(2), last_time(0) {
+}
+
+void SonarPrefilter::init(uint64_t t) {
+    last_time = t;
+}
+
+float SonarPrefilter::msecToSec(uint64_t t) {
+    return t/1000000.0f;
 }
 
 void SonarPrefilter::addMeasurement(uint64_t t, float sonar) {
@@ -45,7 +55,7 @@ void SonarPrefilter::addMeasurement(uint64_t t, float sonar) {
     }
     // If the change between the last data point and this one is too great,
     // discard this as a spike.
-    if (fabs(speed) > max_speed)) {
+    if (fabs(speed) > max_speed) {
         good = false;
     }
 

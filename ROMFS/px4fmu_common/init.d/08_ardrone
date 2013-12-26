@@ -50,9 +50,36 @@ fmu mode_gpio_serial
 ardrone_interface start -d /dev/ttyS1
  
 #
-# Start common for all multirotors apps
+# Start the sensors and test them.
 #
-sh /etc/init.d/rc.multirotor
+sh /etc/init.d/rc.sensors
+
+#
+# Start logging (depends on sensors)
+#
+sh /etc/init.d/rc.logging
+
+#
+# Start the attitude estimator
+#
+attitude_estimator_ekf start
+ 
+#
+# Start position estimator
+#
+position_estimator_sonar start
+
+#
+# Start attitude control
+#
+multirotor_att_control start
+
+#
+# Start position control
+#
+multirotor_pos_control start
+
+
  
 # Exit, because /dev/ttyS0 is needed for MAVLink
 exit

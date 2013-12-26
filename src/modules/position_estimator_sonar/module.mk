@@ -36,5 +36,5 @@
 #
 
 MODULE_COMMAND	 	= position_estimator_sonar
-SRCS		 	= position_estimator_sonar_main.c \
+SRCS		 	= position_estimator_sonar_main.cpp \
 			position_estimator_sonar_params.c
