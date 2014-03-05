@@ -410,6 +410,8 @@ then
 			
 			# Exit from nsh to free port for mavlink
 			set EXIT_ON_END yes
+
+			mavlink_onboard start -d /dev/ttyS3 -b 115200
 		else
 			# Start MAVLink on default port: ttyS1
 			mavlink start
@@ -438,8 +440,8 @@ then
 		echo "[init] Start logging"
 		sh /etc/init.d/rc.logging
 		
-		echo "[init] Start GPS"
-		gps start
+		# echo "[init] Start GPS"
+		# gps start
 	fi
 	
 	#
