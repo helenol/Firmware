@@ -276,6 +276,17 @@ struct log_TELE_s {
     uint8_t txbuf;
 };
 
+/* --- VICON - VICON POSITION --- */
+#define LOG_VICON_MSG 20
+struct log_VICON_s {
+    float x;
+    float y;
+    float z;
+    float pitch;
+    float roll;
+    float yaw;
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -324,7 +335,7 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(BATT, "ffff", "V,VFilt,C,Discharged"),
 	LOG_FORMAT(DIST, "ffB", "Bottom,BottomRate,Flags"),
 	LOG_FORMAT(TELE, "BBBBHHB", "RSSI,RemRSSI,Noise,RemNoise,RXErr,Fixed,TXBuf"),
-
+    LOG_FORMAT(VICON, "ffffff", "X,Y,Z,Pitch,Roll,Yaw"),
 	/* system-level messages, ID >= 0x80 */
 	// FMT: don't write format of format message, it's useless
 	LOG_FORMAT(TIME, "Q", "StartTime"),
