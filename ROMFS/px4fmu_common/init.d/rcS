@@ -411,7 +411,7 @@ then
 			# Exit from nsh to free port for mavlink
 			set EXIT_ON_END yes
 
-			mavlink_onboard start -d /dev/ttyS3 -b 115200
+			# mavlink_onboard start -d /dev/ttyS3 -b 115200
 		else
 			# Start MAVLink on default port: ttyS1
 			mavlink start
