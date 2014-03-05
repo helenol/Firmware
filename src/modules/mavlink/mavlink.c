@@ -132,7 +132,7 @@ bool mavlink_hil_enabled = false;
 /* protocol interface */
 static int uart;
 static int baudrate;
-bool gcs_link = true;
+bool gcs_link = false;
 
 /* interface mode */
 static enum {
