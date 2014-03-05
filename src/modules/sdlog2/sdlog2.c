@@ -814,6 +814,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_BATT_s log_BATT;
 			struct log_DIST_s log_DIST;
 			struct log_TELE_s log_TELE;
+            struct log_VICON_s log_VICON;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -1277,7 +1278,14 @@ int sdlog2_thread_main(int argc, char *argv[])
 			/* --- VICON POSITION --- */
 			if (fds[ifds++].revents & POLLIN) {
 				orb_copy(ORB_ID(vehicle_vicon_position), subs.vicon_pos_sub, &buf.vicon_pos);
-				// TODO not implemented yet
+                log_msg.msg_type = LOG_VICON_MSG;
+                log_msg.body.log_VICON.x = buf.vicon_pos.x;
+                log_msg.body.log_VICON.y = buf.vicon_pos.y;
+                log_msg.body.log_VICON.z = buf.vicon_pos.z;
+                log_msg.body.log_VICON.pitch = buf.vicon_pos.pitch;
+                log_msg.body.log_VICON.roll = buf.vicon_pos.roll;
+                log_msg.body.log_VICON.yaw = buf.vicon_pos.yaw;
+                LOGBUFFER_WRITE_AND_COUNT(VICON);
 			}
 
 			/* --- FLOW --- */

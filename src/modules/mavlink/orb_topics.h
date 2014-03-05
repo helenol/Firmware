@@ -95,6 +95,7 @@ struct mavlink_subscriptions {
 	int airspeed_sub;
 	int navigation_capabilities_sub;
 	int position_setpoint_triplet_sub;
+    int vicon_position_sub;
 };
 
 extern struct mavlink_subscriptions mavlink_subs;

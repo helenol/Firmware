@@ -77,6 +77,7 @@ struct actuator_armed_s armed;
 struct actuator_controls_s actuators_0;
 struct vehicle_attitude_s att;
 struct airspeed_s airspeed;
+struct vehicle_vicon_position_s vicon_position;
 
 struct mavlink_subscriptions mavlink_subs;
 
@@ -127,6 +128,7 @@ static void	l_vehicle_rates_setpoint(const struct listener *l);
 static void	l_home(const struct listener *l);
 static void	l_airspeed(const struct listener *l);
 static void	l_nav_cap(const struct listener *l);
+static void l_vicon_position(const struct listener *l);
 
 static const struct listener listeners[] = {
 	{l_sensor_combined,		&mavlink_subs.sensor_sub,	0},
@@ -153,6 +155,7 @@ static const struct listener listeners[] = {
 	{l_home,			&mavlink_subs.home_sub,		0},
 	{l_airspeed,			&mavlink_subs.airspeed_sub,		0},
 	{l_nav_cap,			&mavlink_subs.navigation_capabilities_sub,		0},
+    {l_vicon_position,         &mavlink_subs.vicon_position_sub,      0},
 };
 
 static const unsigned n_listeners = sizeof(listeners) / sizeof(listeners[0]);
@@ -168,6 +171,23 @@ cm_uint16_from_m_float(float m)
 	}
 
 	return (uint16_t)(m * 100.0f);
+}
+
+void
+l_vicon_position(const struct listener *l)
+{
+    /* copy local position data into local buffer */
+    orb_copy(ORB_ID(vehicle_vicon_position), mavlink_subs.vicon_position_sub, &vicon_position);
+
+    if (gcs_link)
+        mavlink_msg_vicon_position_estimate_send(MAVLINK_COMM_0,
+                            vicon_position.timestamp / 1000,
+                            vicon_position.x,
+                            vicon_position.y,
+                            vicon_position.z,
+                            vicon_position.roll,
+                            vicon_position.pitch,
+                            vicon_position.yaw);
 }
 
 void
@@ -772,9 +792,13 @@ uorb_receive_start(void)
 	mavlink_subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
 	orb_set_interval(mavlink_subs.global_pos_sub, 100);	/* 10 Hz active updates */
 
+    /* --- VICON POS VALUE --- */
+    mavlink_subs.vicon_position_sub = orb_subscribe(ORB_ID(vehicle_vicon_position));
+    orb_set_interval(mavlink_subs.vicon_position_sub, 100); /* 10 Hz active updates */
+
 	/* --- LOCAL POS VALUE --- */
 	mavlink_subs.local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
-	orb_set_interval(mavlink_subs.local_pos_sub, 1000);	/* 1Hz active updates */
+	orb_set_interval(mavlink_subs.local_pos_sub, 100);	/* 10Hz active updates */
 
 	/* --- GLOBAL SETPOINT VALUE --- */
 	mavlink_subs.triplet_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
@@ -822,7 +846,7 @@ uorb_receive_start(void)
 
 	/* --- FLOW SENSOR --- */
 	mavlink_subs.optical_flow = orb_subscribe(ORB_ID(optical_flow));
-	orb_set_interval(mavlink_subs.optical_flow, 200); 	/* 5Hz updates */
+	orb_set_interval(mavlink_subs.optical_flow, 100); 	/* 10Hz updates */
 
 	/* --- AIRSPEED --- */
 	mavlink_subs.airspeed_sub = orb_subscribe(ORB_ID(airspeed));
