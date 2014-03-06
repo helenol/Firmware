@@ -109,7 +109,7 @@ static int deamon_task;						/**< Handle of deamon task / thread */
 static bool logwriter_should_exit = false;	/**< Logwriter thread exit flag */
 static const int MAX_NO_LOGFOLDER = 999;	/**< Maximum number of log dirs */
 static const int MAX_NO_LOGFILE = 999;		/**< Maximum number of log files */
-static const int LOG_BUFFER_SIZE_DEFAULT = 8192;
+static const int LOG_BUFFER_SIZE_DEFAULT = 4000;
 static const int MAX_WRITE_CHUNK = 512;
 static const int MIN_BYTES_TO_WRITE = 512;
 
@@ -255,7 +255,7 @@ int sdlog2_main(int argc, char *argv[])
 		main_thread_should_exit = false;
 		deamon_task = task_spawn_cmd("sdlog2",
 					     SCHED_DEFAULT,
-					     SCHED_PRIORITY_DEFAULT - 30,
+					     SCHED_PRIORITY_DEFAULT - 10,
 					     3000,
 					     sdlog2_thread_main,
 					     (const char **)argv);
