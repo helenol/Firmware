@@ -277,7 +277,7 @@ struct log_TELE_s {
 };
 
 /* --- VICON - VICON POSITION --- */
-#define LOG_VICON_MSG 20
+#define LOG_VICON_MSG 23
 struct log_VICON_s {
     float x;
     float y;
