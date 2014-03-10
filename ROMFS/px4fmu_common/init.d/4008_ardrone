@@ -33,3 +33,5 @@ fi
 set OUTPUT_MODE ardrone
 set USE_IO no
 set MIXER skip
+
+param set BAT_V_SCALING 0.008381
