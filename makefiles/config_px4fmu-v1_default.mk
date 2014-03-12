@@ -64,6 +64,7 @@ MODULES		+= modules/commander
 MODULES		+= modules/navigator
 MODULES		+= modules/mavlink
 MODULES     += modules/mavlink_onboard
+MODULES     += modules/mavlink_android
 MODULES		+= modules/gpio_led
 
 #
@@ -71,14 +72,14 @@ MODULES		+= modules/gpio_led
 #
 MODULES		+= modules/attitude_estimator_ekf
 MODULES		+= modules/att_pos_estimator_ekf
-MODULES		+= modules/position_estimator_inav
+#MODULES		+= modules/position_estimator_inav
 #MODULES		+= examples/flow_position_estimator
 
 #
 # Vehicle Control
 #
-MODULES		+= modules/fw_pos_control_l1
-MODULES		+= modules/fw_att_control
+#MODULES		+= modules/fw_pos_control_l1
+#MODULES		+= modules/fw_att_control
 MODULES		+= modules/mc_att_control
 MODULES		+= modules/mc_pos_control
 #MODULES		+= examples/flow_position_control
