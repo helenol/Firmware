@@ -7,8 +7,8 @@ if [ -d /fs/microsd ]
 then
 	if hw_ver compare PX4FMU_V1
 	then
-		echo "Start sdlog2 at 50Hz"
-		sdlog2 start -r 50 -b 8 -e
+		#echo "Start sdlog2 at 50Hz"
+		#sdlog2 start -r 50 -b 2 -e
 	else
 		echo "Start sdlog2 at 200Hz"
 		sdlog2 start -r 200 -b 16 -e

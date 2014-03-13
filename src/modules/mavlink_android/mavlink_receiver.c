@@ -304,7 +304,7 @@ receive_thread(void *arg)
 
 	mavlink_message_t msg;
 
-	prctl(PR_SET_NAME, "mavlink_onboard_rcv", getpid());
+	prctl(PR_SET_NAME, "mavlink_android_rcv", getpid());
 
 	struct pollfd fds[] = { { .fd = uart_fd, .events = POLLIN } };
 
