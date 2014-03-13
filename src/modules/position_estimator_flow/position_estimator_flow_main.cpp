@@ -265,9 +265,9 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             orb_check(vehicle_attitude_sub, &updated);
             if (updated) {
                 orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
+                u(0) = att.roll;
                 u(1) = att.pitch;
-                u(2) = att.roll;
-                u(3) = att.yaw;
+                u(2) = att.yaw;
                 new_attitude = true;
             }
 
@@ -283,7 +283,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             orb_check(actuator_sub, &updated);
             if (updated) {
                 orb_copy(ORB_ID_VEHICLE_ATTITUDE_CONTROLS, actuator_sub, &actuator);
-                u(0) = actuator.control[3]*thrust_scale/m;
+                //u(0) = actuator.control[3]*thrust_scale/m;
             }
 
             /* armed */
