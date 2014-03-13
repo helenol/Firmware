@@ -12,17 +12,20 @@ class SonarPrefilter {
 
   private:
     static float msecToSec(uint64_t t);
+    static const window_size;
 
     // Parameters.
     float min_val;
     float max_val;
-    float threshold;
-    float vel_threshold;
+    float mean_threshold;
+    float var_threshold;
 
     // State variables
-    float last_measure;
-    float last_sonar;
+    char window_index;
+    float sliding_window[window_size];
     uint64_t last_time;
 };
+
+SonarPrefilter::window_size = 20;
 
 #endif

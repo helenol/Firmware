@@ -3,9 +3,9 @@
 
 #include <mathlib/mathlib.h>
 
-#define N_STATES 10
+#define N_STATES 13
 #define N_MEASURE 7
-#define N_CONTROL 4
+#define N_CONTROL 3
 
 class FlowEKF {
   public:

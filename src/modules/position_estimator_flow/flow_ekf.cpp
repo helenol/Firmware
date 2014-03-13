@@ -37,7 +37,7 @@ void FlowEKF::ekfStep(uint64_t t,
     // First, figure out what the rotation matrix should be from the controls.
     // I think the rest just need thrust and rotation matrix...
     createRotmat(u);
-    predictAccel(u(0));
+    //predictAccel(u(0));
 
     predict(dt);
 
@@ -50,10 +50,11 @@ void FlowEKF::ekfStep(uint64_t t,
 
 void FlowEKF::createRotmat(const math::Vector<N_CONTROL>& u)
 {
-    float pitch = u(0);
-    float roll = u(1);
+    float roll = u(0);
+    float pitch = u(1);
     float yaw = u(2);
 
+    // Verify that roll is correct... seems wrong. :(
     rotmat(0, 0) = cos(pitch)*cos(yaw);
     rotmat(0, 1) = cos(pitch)*sin(yaw);
     rotmat(0, 2) = -sin(pitch);
@@ -115,30 +116,33 @@ void FlowEKF::update(float dt, const math::Vector<N_MEASURE>& z,
 }
 
 void FlowEKF::createQ(float sigma_pos_noise, float sigma_vel_noise,
+                      float sigma_acc_noise, 
                       float sigma_acc_bias, float sigma_baro_bias)
 {
-    // TODO: all indices - 1
     Q.zero();
     Q(0, 0) = sigma_pos_noise*sigma_pos_noise;
+    Q(1, 1) = Q(0, 0);
     Q(2, 2) = Q(0, 0);
-    Q(4, 4) = Q(0, 0);
 
-    Q(1, 1) = sigma_vel_noise*sigma_vel_noise;
-    Q(3, 3) = Q(1, 1);
-    Q(5, 5) = Q(1, 1);
+    Q(3, 3) = sigma_vel_noise*sigma_vel_noise;
+    Q(4, 4) = Q(3, 3);
+    Q(5, 5) = Q(3, 3);
 
-    Q(6, 6) = sigma_acc_bias*sigma_acc_bias;
+    Q(6, 6) = sigma_acc_noise*sigma_acc_noise;
     Q(7, 7) = Q(6, 6);
     Q(8, 8) = Q(6, 6);
 
-    Q(9, 9) = sigma_baro_bias*sigma_baro_bias;
+    Q(9, 9) = sigma_acc_bias*sigma_acc_bias;
+    Q(10, 10) = Q(6, 6);
+    Q(11, 11) = Q(6, 6);
+
+    Q(12, 12) = sigma_baro_bias*sigma_baro_bias;
 
 }
 
 void FlowEKF::createR(float sigma_acc, float sigma_baro, 
                       float sigma_flow, float sigma_sonar)
 {
-    // TODO: all indices - 1
     R.zero();
     R(0, 0) = sigma_acc*sigma_acc;
     R(1, 1) = R(0, 0);
@@ -151,7 +155,6 @@ void FlowEKF::createR(float sigma_acc, float sigma_baro,
 
 void FlowEKF::stateTransition(float dt)
 {
-    // TODO: all indices - 1
     // TODO: double check that this is still correct.
     F.identity();
 
@@ -203,16 +206,13 @@ void FlowEKF::predictError(float dt, const math::Vector<N_MEASURE>& z,
     if (new_sensors)
     {
         // Accelerometer - x
-        H(0, 0) = 1/2*dt*dt;
-        H(0, 1) = dt;
+        H(0, 0) = 1;
         H(0, 6) = 1;
         // Accelerometer - y
-        H(1, 2) = 1/2*dt*dt;
-        H(1, 3) = dt;
+        H(1, 2) = 1;
         H(1, 7) = 1;
         // Accelerometer - z
-        H(2, 4) = 1/2*dt*dt;
-        H(2, 5) = dt;
+        H(2, 4) = 1;
         H(2, 8) = 1;
         // Baro - z
         H(3, 4) = -1;
