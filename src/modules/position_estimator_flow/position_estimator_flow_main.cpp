@@ -36,7 +36,7 @@ static bool thread_should_exit = false; /**< Deamon exit flag */
 static bool thread_running = false; /**< Deamon status flag */
 static int position_estimator_flow_task; /**< Handle of deamon task / thread */
 static bool verbose_mode = false;
-static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
+static const uint32_t pub_interval = 20000; // limit publish rate to 100 Hz
 
 
 extern "C" __EXPORT int position_estimator_flow_main(int argc, char *argv[]);
@@ -86,7 +86,7 @@ int position_estimator_flow_main(int argc, char *argv[])
                 verbose_mode = true;
         thread_should_exit = false;
         position_estimator_flow_task = task_spawn_cmd("position_estimator_flow",
-                           SCHED_RR, SCHED_PRIORITY_MAX - 30, 10000,
+                           SCHED_DEFAULT, SCHED_PRIORITY_MAX - 100, 14000,
                            position_estimator_flow_thread_main,
                            (argv) ? (const char **) &argv[2] : (const char **) NULL);
         exit(0);
@@ -165,37 +165,40 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     // Initialize.
     Vector<N_STATES> x;
     x.zero();
-    Matrix<N_STATES, N_STATES> P;
-    P.identity();
-    P = P*0.1;
-
-    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
-    // Coordinate system is NED (north, east, down).
-    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
     hrt_abstime t = hrt_absolute_time();
-    ekf.init(t, x, P);
-    prefilter.init(t);
+    {
+        Matrix<N_STATES, N_STATES> P;
+        P.identity();
+        P = P*0.1;
+
+        // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
+        // Coordinate system is NED (north, east, down).
+        // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
+        ekf.init(t, x, P);
+        prefilter.init(t);
+    }
 
     // Configure.
     // TODO: Load all the parameter values and configure.
     float g = 9.81;       // m/s^2
     float m = 0.490;      // kg
     float thrust_scale = 7.15; // Thrust -> Force magic conversion units.
-    float sigma_acc = 0.03;
+    float sigma_acc = 0.015;
     float sigma_acc_bias = 0.0006;
     float sigma_baro = 0.5;
     float sigma_baro_bias = 0.005;
     float sigma_flow = 0.3;
-    float sigma_sonar = 0.02;
+    float sigma_sonar = 0.5; //0.02;
     float sigma_pos_noise = 0.01;
-    float sigma_vel_noise = 0.001;
+    float sigma_vel_noise = 0.01;
+    float sigma_acc_noise = 0.5;
 
     float flow_f = 16.0f/(24)*1000.0f;
     float flow_frame_rate = 120.0f;
 
     ekf.setParams(sigma_acc, sigma_baro, sigma_flow, sigma_sonar, 
-                  sigma_pos_noise, sigma_vel_noise, sigma_acc_bias, 
-                  sigma_baro_bias);
+                  sigma_pos_noise, sigma_vel_noise, sigma_acc_noise,
+                  sigma_acc_bias, sigma_baro_bias);
     // Trust the default params for sonar.
 
     // Let's start this loop up!
@@ -212,9 +215,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
     // Keep offsets.
     float baro_offset;
+    float yaw_offset = 0.0;
+    bool yaw_offset_set = false;
 
     // Poll once to get the baro offset... I think we don't need to do more?
     // Wait a max of 1000 ms = 1 second. Sensors SHOULD come up by then?
+    // Could also just start running EKF immediately and see what happens.
     {
         int ret = poll(fds_init, 1, 1000);
         if (ret < 0) {
@@ -236,8 +242,14 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     fds[0].events = POLLIN;
 
     // This is for checking whether the values we're getting are ACTUALLY new.
+    // Wait... nawwww.
     uint32_t accel_counter = 0;
     uint32_t baro_counter = 0;
+
+    // Keep attitude rates for gyro comp.
+    float attr_x;
+    float attr_y;
+
 
     // And this is the actual vector we will pass in to the ekf.
     Vector<N_MEASURE> z;
@@ -246,7 +258,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     u.zero();
 
     while (!thread_should_exit) {
-        int ret = poll(fds, 1, 20); // wait maximal 20 ms = 50 Hz minimum rate
+        int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
         t = hrt_absolute_time();
 
         if (ret < 0) {
@@ -267,8 +279,17 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
                 u(0) = att.roll;
                 u(1) = att.pitch;
-                u(2) = att.yaw;
+                // Align this to the vicon frame, so subtract initial yaw.
+                u(2) = att.yaw - yaw_offset;
                 new_attitude = true;
+
+                if (yaw_offset_set == false) {
+                    yaw_offset = att.yaw;
+                    yaw_offset_set = true;
+                }
+
+                attr_x = att.rollspeed;
+                attr_y = att.pitchspeed;
             }
 
             /* parameter update */
@@ -310,8 +331,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
                 // TODO: add gyro compensation.
-                z(4) = -flow.flow_raw_y/10.0/flow_f*x(4)*flow_frame_rate;
-                z(5) = flow.flow_raw_x/10.0/flow_f*x(4)*flow_frame_rate;
+                z(4) = -flow.flow_raw_y/10.0/flow_f*x(2)*flow_frame_rate - attr_y*x(2);
+                z(5) = flow.flow_raw_x/10.0/flow_f*x(2)*flow_frame_rate + attr_x*x(2);
                 z(6) = flow.ground_distance_m;
                 valid_sonar = prefilter.isValid(t, flow.ground_distance_m);
 
@@ -322,10 +343,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
             if (new_attitude || new_sensors || new_flow) {
                 ekf.ekfStep(t, z, u, new_sensors, new_flow, valid_sonar, &x);
-                warnx("ekf update, u: %.2f %.2f %.2f %.2f", 
-                        u(0), u(1), u(2), u(3));
-                warnx("ekf update, z: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
-                        z(0), z(1), z(2), z(3), z(4), z(5), z(6));
+                //warnx("ekf update, u: %.2f %.2f %.2f %.2f", 
+                //       u(0), u(1), u(2));
+                //warnx("ekf update, z: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
+                //        z(0), z(1), z(2), z(3), z(4), z(5), z(6));
+                //warnx("ekf update, x: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
+                //        x(0), x(1), x(2), x(3), x(4), x(5));
 
             }
         }
@@ -340,16 +363,16 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             local_pos.xy_global = false;
             local_pos.z_global = false;
             local_pos.x = x(0);
-            local_pos.y = x(2);
-            local_pos.z = x(4);
-            local_pos.vx = x(1);
-            local_pos.vy = x(3);
+            local_pos.y = x(1);
+            local_pos.z = x(2);
+            local_pos.vx = x(3);
+            local_pos.vy = x(4);
             local_pos.vz = x(5);
             // Don't know if we landed or not?
-            local_pos.landed = x(4) >= -0.1;
+            local_pos.landed = x(2) >= -0.1;
             // I don't know why there is yaw here and how it is used.
             // In the future, maybe use as offset to global frame???
-            local_pos.yaw = att.yaw;
+            local_pos.yaw = u(2);
             local_pos.timestamp = t;
 
             orb_publish(ORB_ID(vehicle_local_position),
@@ -358,7 +381,10 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(40000);
+        usleep(20000);
+
+        //usleep(1000000); // 1 s
+        //usleep(40000);
     }
 
     warnx("stopped");
