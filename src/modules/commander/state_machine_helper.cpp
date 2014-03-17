@@ -257,7 +257,8 @@ main_state_transition(struct vehicle_status_s *status, main_state_t new_main_sta
 	case MAIN_STATE_AUTO:
 
 		/* need global position estimate */
-		if (status->condition_global_position_valid) {
+        if (status->condition_local_position_valid ||
+            status->condition_global_position_valid)  {
 			ret = TRANSITION_CHANGED;
 		}
 

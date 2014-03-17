@@ -10,9 +10,10 @@ class SonarPrefilter {
     void setParams(float min_val_, float max_val_, float threshold_, float vel_threshold_);
     bool isValid(uint64_t t, float sonar);
 
+    static const int window_size = 20;
+
   private:
     static float msecToSec(uint64_t t);
-    static const window_size;
 
     // Parameters.
     float min_val;
@@ -25,7 +26,5 @@ class SonarPrefilter {
     float sliding_window[window_size];
     uint64_t last_time;
 };
-
-SonarPrefilter::window_size = 20;
 
 #endif

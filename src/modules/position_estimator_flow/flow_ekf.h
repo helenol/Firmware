@@ -17,6 +17,7 @@ class FlowEKF {
     void setParams(float sigma_acc, float sigma_baro, 
                    float sigma_flow, float sigma_sonar,
                    float sigma_pos_noise, float sigma_vel_noise,
+                   float sigma_acc_noise,
                    float sigma_acc_bias, float sigma_baro_bias);
 
     void ekfStep(uint64_t t,
@@ -39,7 +40,8 @@ class FlowEKF {
                       bool new_sensors, bool new_flow, bool valid_sonar,
                       math::Vector<N_MEASURE>* y);
 
-    void createQ(float sigma_pos_noise, float sigma_vel_noise,
+    void createQ(float sigma_pos_noise, float sigma_vel_noise,\
+                 float sigma_acc_noise, 
                  float sigma_acc_bias, float sigma_baro_bias);
     void createR(float sigma_acc, float sigma_baro, 
                  float sigma_flow, float sigma_sonar);
@@ -74,6 +76,8 @@ class FlowEKF {
     // K and S are kalman gains.
     math::Matrix<N_STATES, N_MEASURE> K;
     math::Matrix<N_MEASURE, N_MEASURE> S;
+
+    bool verbose;
 };
 
 #endif

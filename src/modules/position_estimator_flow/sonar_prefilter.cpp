@@ -3,7 +3,7 @@
 #include "sonar_prefilter.h"
 
 SonarPrefilter::SonarPrefilter()
-    : min_val(0.301), max_val(2.6), mean_threshold(0.5), var_threshold(0.2),
+    : min_val(0.301), max_val(2), mean_threshold(0.2), var_threshold(0.5),
       last_time(0) {
     for (int i = 0; i < window_size; i++) {
         sliding_window[i] = 0;
@@ -46,8 +46,8 @@ bool SonarPrefilter::isValid(uint64_t t, float sonar) {
     float var = 0;
     // Calculate mean and variance of the last window.
     for (int i=0; i < window_size; i++) {
-        mean += 1.0/window_size*window[i];
-        var += 1.0/window_size*(window[i]*window[i]);
+        mean += 1.0/window_size*sliding_window[i];
+        var += 1.0/window_size*(sliding_window[i]*sliding_window[i]);
     }
 
     var -= mean*mean;
