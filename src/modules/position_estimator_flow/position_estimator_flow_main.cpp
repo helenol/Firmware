@@ -330,7 +330,6 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             if (updated) {
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
-                // TODO: add gyro compensation.
                 z(4) = -flow.flow_raw_y/10.0/flow_f*x(2)*flow_frame_rate - attr_y*x(2);
                 z(5) = flow.flow_raw_x/10.0/flow_f*x(2)*flow_frame_rate + attr_x*x(2);
                 z(6) = flow.ground_distance_m;
