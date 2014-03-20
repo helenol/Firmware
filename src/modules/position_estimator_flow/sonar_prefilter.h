@@ -19,7 +19,8 @@ class SonarPrefilter {
     float min_val;
     float max_val;
     float mean_threshold;
-    float var_threshold;
+    float vel_threshold;
+    float last_sonar;
 
     // State variables
     char window_index;

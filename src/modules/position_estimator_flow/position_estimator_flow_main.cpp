@@ -166,12 +166,11 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     Vector<N_STATES> x;
     x.zero();
     hrt_abstime t = hrt_absolute_time();
-    
 
     // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
     // Coordinate system is NED (north, east, down).
     // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
-    ekf.init(t, x, 0.1);
+    ekf.init(t, x, 0.01);
     prefilter.init(t);
 
     // Configure.
@@ -179,15 +178,15 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     float g = 9.81;       // m/s^2
     float m = 0.490;      // kg
     float thrust_scale = 7.15; // Thrust -> Force magic conversion units.
-    float sigma_acc = 0.015;
+    float sigma_acc = 0.03;
     float sigma_acc_bias = 0.0006;
     float sigma_baro = 0.5;
     float sigma_baro_bias = 0.005;
     float sigma_flow = 0.3;
-    float sigma_sonar = 0.5; //0.02;
+    float sigma_sonar = 0.02; //0.02;
     float sigma_pos_noise = 0.01;
     float sigma_vel_noise = 0.01;
-    float sigma_acc_noise = 0.5;
+    float sigma_acc_noise = 0.01;
 
     float flow_f = 16.0f/(24)*1000.0f;
     float flow_frame_rate = 120.0f;
@@ -236,11 +235,6 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     struct pollfd fds[1];
     fds[0].fd = vehicle_attitude_sub;
     fds[0].events = POLLIN;
-
-    // This is for checking whether the values we're getting are ACTUALLY new.
-    // Wait... nawwww.
-    uint32_t accel_counter = 0;
-    uint32_t baro_counter = 0;
 
     // Keep attitude rates for gyro comp.
     float attr_x;
@@ -325,8 +319,10 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             if (updated) {
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
-                z(4) = -flow.flow_raw_y/10.0/flow_f*x(2)*flow_frame_rate - attr_y*x(2);
-                z(5) = flow.flow_raw_x/10.0/flow_f*x(2)*flow_frame_rate + attr_x*x(2);
+                float z_pos = x(2)>0 ? 0 : x(2);
+
+                z(4) = -flow.flow_raw_y/10.0/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
+                z(5) = flow.flow_raw_x/10.0/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
                 z(6) = flow.ground_distance_m;
                 valid_sonar = prefilter.isValid(t, flow.ground_distance_m);
 

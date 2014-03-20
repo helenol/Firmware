@@ -409,7 +409,7 @@ then
 			usleep 5000
 			
 			# Exit from nsh to free port for mavlink
-			#set EXIT_ON_END yes
+			set EXIT_ON_END yes
 
 			mavlink_onboard start -d /dev/ttyS3 -b 115200
 		else

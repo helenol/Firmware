@@ -5,9 +5,7 @@
 #
 
 attitude_estimator_ekf start
-
-usleep 10000
-position_estimator_flow start
+#position_estimator_flow start
 
 mc_att_control start
 mc_pos_control start
