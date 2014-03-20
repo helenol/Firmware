@@ -524,8 +524,8 @@ MulticopterPositionControl::task_main()
 
 	hrt_abstime t_prev = 0;
 
-	const float alt_ctl_dz = 1.0f;//0.2f;
-	const float pos_ctl_dz = 1.0f;//0.05f;
+	const float alt_ctl_dz = 0.2f;
+	const float pos_ctl_dz = 0.05f;
 
 	math::Vector<3> sp_move_rate;
 	sp_move_rate.zero();
