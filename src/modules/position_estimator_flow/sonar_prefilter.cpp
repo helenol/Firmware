@@ -24,10 +24,6 @@ void SonarPrefilter::setParams(float min_val_, float max_val_,
     var_threshold = var_threshold_;
 }
 
-float SonarPrefilter::msecToSec(uint64_t t) {
-    return t/1000000.0f;
-}
-
 bool SonarPrefilter::isValid(uint64_t t, float sonar) {
     // Figure out dt.
     //float dt = msecToSec(t - last_time);

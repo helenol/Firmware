@@ -3,6 +3,8 @@
 
 #include <drivers/drv_hrt.h>
 
+float msecToSec(uint64_t t);
+
 class SonarPrefilter {
   public:
     SonarPrefilter();
@@ -13,8 +15,6 @@ class SonarPrefilter {
     static const int window_size = 20;
 
   private:
-    static float msecToSec(uint64_t t);
-
     // Parameters.
     float min_val;
     float max_val;

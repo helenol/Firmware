@@ -26,7 +26,7 @@
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/uORB.h>
 
-#include "flow_ekf.h"
+#include "flow_ekf_sep.h"
 #include "sonar_prefilter.h"
 //#include "position_estimator_flow_params.h"
 
@@ -86,7 +86,7 @@ int position_estimator_flow_main(int argc, char *argv[])
                 verbose_mode = true;
         thread_should_exit = false;
         position_estimator_flow_task = task_spawn_cmd("position_estimator_flow",
-                           SCHED_DEFAULT, SCHED_PRIORITY_MAX - 100, 14000,
+                           SCHED_DEFAULT, SCHED_PRIORITY_MAX - 100, 5000,
                            position_estimator_flow_thread_main,
                            (argv) ? (const char **) &argv[2] : (const char **) NULL);
         exit(0);
@@ -159,24 +159,20 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     // Let's start with the fun stuff now.
     // First, create the EKF object.
     // Also create the sonar prefilter object.
-    FlowEKF ekf;
+    FlowEKFSep ekf;
     SonarPrefilter prefilter;
 
     // Initialize.
     Vector<N_STATES> x;
     x.zero();
     hrt_abstime t = hrt_absolute_time();
-    {
-        Matrix<N_STATES, N_STATES> P;
-        P.identity();
-        P = P*0.1;
+    
 
-        // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
-        // Coordinate system is NED (north, east, down).
-        // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
-        ekf.init(t, x, P);
-        prefilter.init(t);
-    }
+    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
+    // Coordinate system is NED (north, east, down).
+    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
+    ekf.init(t, x, 0.1);
+    prefilter.init(t);
 
     // Configure.
     // TODO: Load all the parameter values and configure.
@@ -250,12 +246,10 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     float attr_x;
     float attr_y;
 
-
     // And this is the actual vector we will pass in to the ekf.
     Vector<N_MEASURE> z;
     z.zero();
-    Vector<N_CONTROL> u;
-    u.zero();
+    Matrix<3, 3> rotmat;
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
@@ -277,16 +271,13 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             orb_check(vehicle_attitude_sub, &updated);
             if (updated) {
                 orb_copy(ORB_ID(vehicle_attitude), vehicle_attitude_sub, &att);
-                u(0) = att.roll;
-                u(1) = att.pitch;
-                // Align this to the vicon frame, so subtract initial yaw.
-                u(2) = att.yaw - yaw_offset;
-                new_attitude = true;
-
                 if (yaw_offset_set == false) {
                     yaw_offset = att.yaw;
                     yaw_offset_set = true;
                 }
+                new_attitude = true;
+                // Align this to the vicon frame, so subtract initial yaw.
+                rotmat.from_euler(att.roll, att.pitch, att.yaw - yaw_offset);
 
                 attr_x = att.rollspeed;
                 attr_y = att.pitchspeed;
@@ -339,9 +330,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             }
 
             // Now do the kalman stuff.
-
             if (new_attitude || new_sensors || new_flow) {
-                ekf.ekfStep(t, z, u, new_sensors, new_flow, valid_sonar, &x);
+                ekf.ekfStep(t, z, rotmat, new_sensors, new_flow, valid_sonar, &x);
                 //warnx("ekf update, u: %.2f %.2f %.2f %.2f", 
                 //       u(0), u(1), u(2));
                 //warnx("ekf update, z: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
@@ -371,12 +361,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             local_pos.landed = x(2) >= -0.1;
             // I don't know why there is yaw here and how it is used.
             // In the future, maybe use as offset to global frame???
-            local_pos.yaw = u(2);
+            local_pos.yaw = att.yaw - yaw_offset;
             local_pos.timestamp = t;
 
             orb_publish(ORB_ID(vehicle_local_position),
                         vehicle_local_position_pub, &local_pos);
-            warnx("Published.");
+            //warnx("Published.");
         }
 
         // Sleep for 10 ms
@@ -391,39 +381,3 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     thread_running = false;
     return 0;
 }
-
-
-
-
-
-
-// Set up subscriptions to the necessary topics.
-// Attitude
-// Control input (where thrust comes from) (ATTC?)
-// Optical flow
-// Barometer
-// Accelerometers
-
-// Wait for the first attitude message, just to be sure.
-
-
-// Set the initial position to 0, 0, 0 with pretty high confidence.
-
-// Poll on attitude, assign to u.
-
-// Poll on sensors, assign to proper variables (flip new_sensors to true).
-
-
-// Poll on flowboard, assign to proper variables (flip new_flow to true).
-
-
-// Assign values to correct places in the z vector.
-
-
-// Run an EKF step.
-
-
-// Check if we have gone long enough without updating to update.
-
-
-// Outputs should be in proper NED already.
