@@ -281,6 +281,10 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
                 attr_x = att.rollspeed;
                 attr_y = att.pitchspeed;
+
+                z(0) = att.g_comp[0];
+                z(1) = att.g_comp[1];
+                z(2) = att.g_comp[2];
             }
 
             /* parameter update */
@@ -308,9 +312,9 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             orb_check(sensor_combined_sub, &updated);
             if (updated) {
                 orb_copy(ORB_ID(sensor_combined), sensor_combined_sub, &sensor);
-                z(0) = sensor.accelerometer_m_s2[0];
-                z(1) = sensor.accelerometer_m_s2[1];
-                z(2) = sensor.accelerometer_m_s2[2];
+                //z(0) = sensor.accelerometer_m_s2[0];
+                //z(1) = sensor.accelerometer_m_s2[1];
+                //z(2) = sensor.accelerometer_m_s2[2];
                 z(3) = sensor.baro_alt_meter - baro_offset;
 
                 new_sensors = true;

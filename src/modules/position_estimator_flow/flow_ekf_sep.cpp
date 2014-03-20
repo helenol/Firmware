@@ -67,7 +67,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     acc = rotmat*acc;
 
     // Remove the gravity vector.
-    acc(2) += g;
+    //acc(2) += g;
 
     flow(0) = z(4);
     flow(1) = z(5);
