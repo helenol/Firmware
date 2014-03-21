@@ -28,7 +28,7 @@
 
 #include "flow_ekf_sep.h"
 #include "sonar_prefilter.h"
-//#include "position_estimator_flow_params.h"
+#include "position_estimator_flow_params.h"
 
 using namespace math;
 
@@ -191,10 +191,26 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     float flow_f = 16.0f/(24)*1000.0f;
     float flow_frame_rate = 120.0f;
 
-    ekf.setParams(sigma_acc, sigma_baro, sigma_flow, sigma_sonar, 
-                  sigma_pos_noise, sigma_vel_noise, sigma_acc_noise,
-                  sigma_acc_bias, sigma_baro_bias);
-    // Trust the default params for sonar.
+    // Read in some stuff for parameters.
+    struct position_estimator_flow_params params;
+    struct position_estimator_flow_param_handles pos_flow_param_handles;
+    /* initialize parameter handles */
+    parameters_init(&pos_flow_param_handles);
+
+    /* first parameters read at start up */
+    struct parameter_update_s param_update;
+    /* read from param topic to clear updated flag */
+    orb_copy(ORB_ID(parameter_update), parameter_update_sub, &param_update);
+    /* first parameters update */
+    parameters_update(&pos_flow_param_handles, &params);
+
+    ekf.setParams(params.sigma_acc, params.sigma_baro, params.sigma_flow, 
+                  params.sigma_sonar, params.sigma_pos_noise, 
+                  params.sigma_vel_noise, params.sigma_acc_noise,
+                  params.sigma_acc_bias, params.sigma_baro_bias);
+    flow_frame_rate = params.flow_frame_rate;
+    prefilter.setParams(params.sonar_min_value, params.sonar_max_value, 
+                        params.sonar_mean_threshold, params.sonar_vel_threshold);
 
     // Let's start this loop up!
 
@@ -213,6 +229,9 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     float yaw_offset = 0.0;
     bool yaw_offset_set = false;
 
+    int baro_offset_n = 0;
+    int baro_offset_max_n = 20;
+
     // Poll once to get the baro offset... I think we don't need to do more?
     // Wait a max of 1000 ms = 1 second. Sensors SHOULD come up by then?
     // Could also just start running EKF immediately and see what happens.
@@ -227,6 +246,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 baro_offset = sensor.baro_alt_meter;
                 warnx("baro offs: %.2f", baro_offset);
                 mavlink_log_info(mavlink_fd, "[flow ekf] baro offs: %.2f", baro_offset);
+                baro_offset_n++;
             }
         }
     }
@@ -261,6 +281,27 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             bool new_flow = false;
             bool valid_sonar = false;
 
+            /* parameter update */
+            orb_check(parameter_update_sub, &updated);
+
+            if (updated) {
+                struct parameter_update_s update;
+                orb_copy(ORB_ID(parameter_update), parameter_update_sub, &update);
+                parameters_update(&pos_flow_param_handles, &params);
+
+                ekf.setParams(params.sigma_acc, params.sigma_baro, 
+                        params.sigma_flow, 
+                        params.sigma_sonar, params.sigma_pos_noise, 
+                        params.sigma_vel_noise, params.sigma_acc_noise,
+                        params.sigma_acc_bias, params.sigma_baro_bias);
+                flow_frame_rate = params.flow_frame_rate;
+                prefilter.setParams(params.sonar_min_value, 
+                                    params.sonar_max_value, 
+                                    params.sonar_mean_threshold, 
+                                    params.sonar_vel_threshold);
+
+            }
+
             /* vehicle attitude */
             orb_check(vehicle_attitude_sub, &updated);
             if (updated) {
@@ -280,14 +321,6 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 z(1) = att.g_comp[1];
                 z(2) = att.g_comp[2];
             }
-
-            /* parameter update */
-            /*orb_check(parameter_update_sub, &updated);
-            if (updated) {
-                struct parameter_update_s update;
-                orb_copy(ORB_ID(parameter_update), parameter_update_sub, &update);
-                parameters_update(&pos_sonar_param_handles, &params);
-            }*/
 
             /* actuator */
             orb_check(actuator_sub, &updated);
@@ -309,6 +342,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 //z(0) = sensor.accelerometer_m_s2[0];
                 //z(1) = sensor.accelerometer_m_s2[1];
                 //z(2) = sensor.accelerometer_m_s2[2];
+                if (baro_offset_n < baro_offset_max_n) {
+                    baro_offset = baro_offset*baro_offset_n/(baro_offset_n+1) +
+                                  sensor.baro_alt_meter/(baro_offset_n+1);
+                    baro_offset_n++;
+                }
+
                 z(3) = sensor.baro_alt_meter - baro_offset;
 
                 new_sensors = true;

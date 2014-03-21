@@ -37,6 +37,6 @@
 
 MODULE_COMMAND      = position_estimator_flow
 SRCS            = position_estimator_flow_main.cpp \
-                   flow_ekf_sep.cpp \
-                   sonar_prefilter.cpp
-#            position_estimator_sonar_params.c \
+				position_estimator_flow_params.c \
+				flow_ekf_sep.cpp \
+				sonar_prefilter.cpp
