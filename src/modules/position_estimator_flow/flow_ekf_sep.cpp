@@ -75,6 +75,11 @@ void FlowEKFSep::ekfStep(uint64_t t,
 
     flow = rotmat*flow;
 
+    Vector<3> sonar;
+    sonar.zero();
+    sonar(2) = z(6);
+    sonar = rotmat*sonar;
+
     // Keep baro and sonar unrotated, because they're already in inertial frame.
 
     // Split in to XYZ for the single KFs.
@@ -88,7 +93,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     // Baro
     z_z(1) = z(3);
     // Sonar
-    z_z(2) = z(6);
+    z_z(2) = sonar(2);
 
     // Call the individual KFs.
     kfx.ekfStep(dt, z_x, new_sensors, new_flow, valid_sonar, &x_x);
