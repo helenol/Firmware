@@ -162,17 +162,6 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     FlowEKFSep ekf;
     SonarPrefilter prefilter;
 
-    // Initialize.
-    Vector<N_STATES> x;
-    x.zero();
-    hrt_abstime t = hrt_absolute_time();
-
-    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
-    // Coordinate system is NED (north, east, down).
-    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
-    ekf.init(t, x, 0.01);
-    prefilter.init(t);
-
     // Configure.
     // TODO: Load all the parameter values and configure.
     float g = 9.81;       // m/s^2
@@ -227,7 +216,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     // Keep offsets.
     float baro_offset;
     float yaw_offset = 0.0;
-    bool yaw_offset_set = false;
+    bool yaw_offset_set = true;
 
     int baro_offset_n = 0;
     int baro_offset_max_n = 20;
@@ -264,6 +253,17 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     Vector<N_MEASURE> z;
     z.zero();
     Matrix<3, 3> rotmat;
+
+    // Initialize as close to the start time as possible.
+    Vector<N_STATES> x;
+    x.zero();
+    hrt_abstime t = hrt_absolute_time();
+
+    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
+    // Coordinate system is NED (north, east, down).
+    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
+    ekf.init(t, x, 0.01);
+    prefilter.init(t);
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
@@ -409,7 +409,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(20000);
+        usleep(10000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);

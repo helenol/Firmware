@@ -44,10 +44,10 @@ void FlowEKFSep::setParams(float sigma_acc, float sigma_baro,
                    sigma_pos_noise, sigma_vel_noise, sigma_acc_noise,
                    sigma_acc_bias, sigma_baro_bias);
     kfy.setParams(sigma_acc, sigma_baro, sigma_flow, sigma_sonar,
-                   sigma_pos_noise, sigma_vel_noise, sigma_acc_noise,
+                   sigma_pos_noise, 0.03, sigma_acc_noise,
                    sigma_acc_bias, sigma_baro_bias);
     kfz.setParams(sigma_acc, sigma_baro, sigma_flow, sigma_sonar,
-                   sigma_pos_noise, sigma_vel_noise, sigma_acc_noise,
+                   sigma_pos_noise, 0.03, sigma_acc_noise,
                    sigma_acc_bias, sigma_baro_bias);
 }
 
@@ -67,7 +67,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     acc = rotmat*acc;
 
     // Remove the gravity vector.
-    //acc(2) += g;
+    acc(2) += g;
 
     flow(0) = z(4);
     flow(1) = z(5);
