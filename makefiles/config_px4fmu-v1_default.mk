@@ -83,6 +83,7 @@ MODULES     += modules/position_estimator_flow
 #MODULES		+= modules/fw_att_control
 MODULES		+= modules/mc_att_control
 MODULES		+= modules/mc_pos_control
+MODULES     += modules/helen_pos_control
 #MODULES		+= examples/flow_position_control
 #MODULES		+= examples/flow_speed_control
 

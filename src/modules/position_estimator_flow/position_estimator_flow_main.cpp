@@ -413,7 +413,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             //local_pos.vy = y_vel_filt;//x(4);
             local_pos.vz = x(5);
             // Don't know if we landed or not?
-            local_pos.landed = x(2) >= -0.1;
+            local_pos.landed = 0;
             // I don't know why there is yaw here and how it is used.
             // In the future, maybe use as offset to global frame???
             local_pos.yaw = att.yaw - yaw_offset;
