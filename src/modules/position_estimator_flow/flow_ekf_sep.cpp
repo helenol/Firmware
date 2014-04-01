@@ -247,6 +247,13 @@ void KalmanZ::stateTransition(float dt)
 
     x_pri = F*x_post;
 
+    // Enforce ground constraints.
+    if (x_pri(0) >= 0.0f) {
+        x_pri(0) = 0.0f;
+        x_pri(1) = 0.0f;
+        x_pri(2) = 0.0f;
+    }
+
     if(verbose) warnx("x_post: %.2f %.2f %.2f", x_post(0), x_post(1), x_post(2));
     if(verbose) warnx("x_pri: %.2f %.2f %.2f", x_pri(0), x_pri(1), x_pri(2));
 }

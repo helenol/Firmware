@@ -364,10 +364,15 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             if (updated) {
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
-                float z_pos = x(2)>0 ? 0 : x(2);
-
-                z(4) = -flow.flow_raw_y/10.0/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
-                z(5) = flow.flow_raw_x/10.0/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
+                //float z_pos = x(2);
+                float z_pos = x(2) > 0.0f ? 0.0f : x(2);
+                //if (x(2) >= -0.3f) {
+                //    z(4) = 0.0f;
+                //    z(5) = 0.0f;
+                //} else {
+                z(4) = -flow.flow_raw_y/10.0f/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
+                z(5) = flow.flow_raw_x/10.0f/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
+                //}
                 z(6) = flow.ground_distance_m;
                 valid_sonar = prefilter.isValid(t, flow.ground_distance_m);
 
@@ -385,11 +390,11 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 //        x(0), x(1), x(2), x(3), x(4), x(5));
 
                 // Lowpass filter the x and y velocities to output.
-                float dt = msecToSec(t - t_last);
+                //float dt = msecToSec(t - t_last);
 
-            float alpha = dt / (flow_filter_rc + dt);
-                x_vel_filt = alpha*x(3) + (1-alpha)*x_vel_filt;
-                y_vel_filt = alpha*x(4) + (1-alpha)*y_vel_filt;
+                //float alpha = dt / (flow_filter_rc + dt);
+                //x_vel_filt = alpha*x(3) + (1-alpha)*x_vel_filt;
+                //y_vel_filt = alpha*x(4) + (1-alpha)*y_vel_filt;
 
                 t_last = t;
             }

@@ -359,6 +359,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             // Set the refpoints if we're just switching into this mode.
             if (control_mode.flag_control_altitude_enabled &&
                 !altitude_enabled_before) {
+                refpoint(2) = local_pos.z;
                 refpoint(9) = att.yaw;
                 altitude_enabled_before = true;
             }
@@ -371,6 +372,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 !position_enabled_before) {
                 refpoint(0) = local_pos.x;
                 refpoint(1) = local_pos.y;
+                refpoint(2) = local_pos.z;
                 refpoint(9) = att.yaw;
                 position_enabled_before = true;
             }
@@ -464,7 +466,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(10000);
+        usleep(5000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);
