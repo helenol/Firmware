@@ -257,7 +257,6 @@ handle_message(mavlink_message_t *msg)
 
 		if (vicon_position_pub <= 0) {
 			vicon_position_pub = orb_advertise(ORB_ID(vehicle_vicon_position), &vicon_position);
-
 		} else {
 			orb_publish(ORB_ID(vehicle_vicon_position), vicon_position_pub, &vicon_position);
 		}

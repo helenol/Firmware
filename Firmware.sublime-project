@@ -1,8 +1,19 @@
 {
+	"build_systems":
+	[
+		{
+			"cmd":
+			[
+				"make"
+			],
+			"file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+			"name": "PX4",
+			"working_dir": "${project_path}"
+		}
+	],
 	"folders":
 	[
 		{
-			"path": ".",
 			"file_exclude_patterns":
 			[
 				"*.o",
@@ -26,22 +37,17 @@
 				".settings",
 				"nuttx/arch/arm/src/board",
 				"nuttx/arch/arm/src/chip"
-			]
+			],
+			"path": "/home/helen/dev/px4/Firmware"
+		},
+		{
+			"path": "/home/helen/dev/px4/Flow"
 		}
 	],
 	"settings":
 	{
+		"highlight_line": true,
 		"tab_size": 8,
-		"translate_tabs_to_spaces": false,
-	       "highlight_line": true
-	},
-	"build_systems":
-	[
-		{
-			"name": "PX4",
-			"working_dir": "${project_path}",
-			"file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
-			"cmd": ["make"]
-		}
-	]
+		"translate_tabs_to_spaces": false
+	}
 }
