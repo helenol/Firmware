@@ -421,15 +421,6 @@ then
 		fi
 	fi
 
-    # Main mavlink
-	mavlink start -d /dev/ttyS0 -b 57600
-    mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 10
-    # Optical Flow
-    mavlink start -d /dev/ttyS3 -m custom -b 115200
-    # Android board
-    mavlink start -d /dev/ttyS2 -m custom -b 115200 -w
-    mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 50
-    #mavlink stream -d /dev/ttyS2 -s VICON_POSITION_ESTIMATE -r 10
 
 	#
 	# Start the datamanager
@@ -572,11 +563,29 @@ then
 		echo "[init] Addons script not found: $EXTRAS_FILE"
 	fi
 
+
+
+    # Main mavlink
+    # settings for computer link
+    #mavlink start -d /dev/ttyS0 -b 57600
+    #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 10
+    # settings for vicon link
+    mavlink start -d /dev/ttyS0 -m custom -b 115200
+    # Optical Flow
+    mavlink start -d /dev/ttyS3 -m custom -b 115200
+    # Android board
+    mavlink start -d /dev/ttyS2 -m custom -b 115200 -w
+    mavlink stream -d /dev/ttyS2 -s VICON_POSITION_ESTIMATE -r 100
+    #mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 100
+
 	if [ $EXIT_ON_END == yes ]
 	then
 		echo "[init] Exit from nsh"
 		exit
 	fi
+
+
+
 
 # End of autostart
 fi
