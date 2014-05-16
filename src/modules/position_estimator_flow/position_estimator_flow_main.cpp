@@ -162,17 +162,6 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     FlowEKFSep ekf;
     SonarPrefilter prefilter;
 
-    // Initialize.
-    Vector<N_STATES> x;
-    x.zero();
-    hrt_abstime t = hrt_absolute_time();
-
-    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
-    // Coordinate system is NED (north, east, down).
-    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
-    ekf.init(t, x, 0.01);
-    prefilter.init(t);
-
     // Configure.
     // TODO: Load all the parameter values and configure.
     float g = 9.81;       // m/s^2
@@ -190,6 +179,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
     float flow_f = 16.0f/(24)*1000.0f;
     float flow_frame_rate = 120.0f;
+
+    float flow_filter_rc = 0.05;
 
     // Read in some stuff for parameters.
     struct position_estimator_flow_params params;
@@ -221,13 +212,14 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     // Times.
     hrt_abstime updates_counter_start = hrt_absolute_time();
     hrt_abstime pub_last = hrt_absolute_time();
+    hrt_abstime t_last = hrt_absolute_time();
 
     thread_running = true;
 
     // Keep offsets.
     float baro_offset;
     float yaw_offset = 0.0;
-    bool yaw_offset_set = false;
+    bool yaw_offset_set = true;
 
     int baro_offset_n = 0;
     int baro_offset_max_n = 20;
@@ -260,10 +252,24 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     float attr_x;
     float attr_y;
 
+    // Also low-pass filter the x and y velocities for controller.
+    float x_vel_filt = 0.0f, y_vel_filt = 0.0f;
+
     // And this is the actual vector we will pass in to the ekf.
     Vector<N_MEASURE> z;
     z.zero();
     Matrix<3, 3> rotmat;
+
+    // Initialize as close to the start time as possible.
+    Vector<N_STATES> x;
+    x.zero();
+    hrt_abstime t = hrt_absolute_time();
+
+    // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
+    // Coordinate system is NED (north, east, down).
+    // Observations: [acc_x, acc_y, acc_z, baro, flow_x, flow_y, sonar]
+    ekf.init(t, x, 0.01);
+    prefilter.init(t);
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
@@ -358,10 +364,15 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             if (updated) {
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
-                float z_pos = x(2)>0 ? 0 : x(2);
-
-                z(4) = -flow.flow_raw_y/10.0/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
-                z(5) = flow.flow_raw_x/10.0/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
+                //float z_pos = x(2);
+                float z_pos = x(2) > 0.0f ? 0.0f : x(2);
+                //if (x(2) >= -0.3f) {
+                //    z(4) = 0.0f;
+                //    z(5) = 0.0f;
+                //} else {
+                z(4) = -flow.flow_raw_y/10.0f/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
+                z(5) = flow.flow_raw_x/10.0f/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
+                //}
                 z(6) = flow.ground_distance_m;
                 valid_sonar = prefilter.isValid(t, flow.ground_distance_m);
 
@@ -378,6 +389,14 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 //warnx("ekf update, x: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
                 //        x(0), x(1), x(2), x(3), x(4), x(5));
 
+                // Lowpass filter the x and y velocities to output.
+                //float dt = msecToSec(t - t_last);
+
+                //float alpha = dt / (flow_filter_rc + dt);
+                //x_vel_filt = alpha*x(3) + (1-alpha)*x_vel_filt;
+                //y_vel_filt = alpha*x(4) + (1-alpha)*y_vel_filt;
+
+                t_last = t;
             }
         }
 
@@ -395,9 +414,11 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             local_pos.z = x(2);
             local_pos.vx = x(3);
             local_pos.vy = x(4);
+            //local_pos.vx = x_vel_filt;//x(3);
+            //local_pos.vy = y_vel_filt;//x(4);
             local_pos.vz = x(5);
             // Don't know if we landed or not?
-            local_pos.landed = x(2) >= -0.1;
+            local_pos.landed = 0;
             // I don't know why there is yaw here and how it is used.
             // In the future, maybe use as offset to global frame???
             local_pos.yaw = att.yaw - yaw_offset;
@@ -409,7 +430,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(20000);
+        usleep(10000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);

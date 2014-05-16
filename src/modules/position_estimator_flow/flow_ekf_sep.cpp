@@ -67,13 +67,18 @@ void FlowEKFSep::ekfStep(uint64_t t,
     acc = rotmat*acc;
 
     // Remove the gravity vector.
-    //acc(2) += g;
+    acc(2) += g;
 
     flow(0) = z(4);
     flow(1) = z(5);
     flow(2) = 0;
 
     flow = rotmat*flow;
+
+    Vector<3> sonar;
+    sonar.zero();
+    sonar(2) = z(6);
+    sonar = rotmat*sonar;
 
     // Keep baro and sonar unrotated, because they're already in inertial frame.
 
@@ -88,7 +93,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     // Baro
     z_z(1) = z(3);
     // Sonar
-    z_z(2) = z(6);
+    z_z(2) = sonar(2);
 
     // Call the individual KFs.
     kfx.ekfStep(dt, z_x, new_sensors, new_flow, valid_sonar, &x_x);
@@ -241,6 +246,13 @@ void KalmanZ::stateTransition(float dt)
     F(1, 2) = dt;
 
     x_pri = F*x_post;
+
+    // Enforce ground constraints.
+    if (x_pri(0) >= 0.0f) {
+        x_pri(0) = 0.0f;
+        x_pri(1) = 0.0f;
+        x_pri(2) = 0.0f;
+    }
 
     if(verbose) warnx("x_post: %.2f %.2f %.2f", x_post(0), x_post(1), x_post(2));
     if(verbose) warnx("x_pri: %.2f %.2f %.2f", x_pri(0), x_pri(1), x_pri(2));
