@@ -574,9 +574,11 @@ then
     # Optical Flow
     mavlink start -d /dev/ttyS3 -m custom -b 115200
     # Android board
-    mavlink start -d /dev/ttyS2 -m normal -b 115200 -w
+    mavlink start -d /dev/ttyS2 -m custom -b 115200 -w
     #mavlink stream -d /dev/ttyS2 -s VICON_POSITION_ESTIMATE -r 100
-    mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 100
+    mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 30
+    mavlink stream -d /dev/ttyS2 -s LOCAL_POSITION_NED -r 30
+
 
 	if [ $EXIT_ON_END == yes ]
 	then
