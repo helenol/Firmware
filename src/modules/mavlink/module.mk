@@ -46,3 +46,7 @@ SRCS		 += mavlink_main.cpp \
 			mavlink_commands.cpp
 
 INCLUDE_DIRS	 += $(MAVLINK_SRC)/include/mavlink
+
+MAXOPTIMIZATION	 = -Os
+
+MODULE_STACKSIZE = 1024

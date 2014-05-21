@@ -55,7 +55,7 @@ MODULES		+= systemcmds/top
 MODULES		+= systemcmds/tests
 MODULES		+= systemcmds/config
 MODULES		+= systemcmds/nshterm
-MODULES		+= systemcmds/hw_ver
+MODULES		+= systemcmds/ver
 MODULES		+= systemcmds/dumpfile
 
 #
@@ -70,7 +70,7 @@ MODULES		+= modules/gpio_led
 # Estimation modules (EKF/ SO3 / other filters)
 #
 MODULES		+= modules/attitude_estimator_ekf
-MODULES		+= modules/att_pos_estimator_ekf
+MODULES		+= modules/fw_att_pos_estimator
 #MODULES		+= modules/position_estimator_inav
 MODULES     += modules/position_estimator_flow
 #MODULES		+= examples/flow_position_estimator
