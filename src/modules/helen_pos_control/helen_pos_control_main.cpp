@@ -19,6 +19,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <uORB/topics/actuator_armed.h>
+#include <uORB/topics/manual_control_setpoint.h>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_attitude_setpoint.h>
@@ -114,7 +115,7 @@ void PositionControllerPID(const Vector<10>& refpoint,
                            const Matrix<3, 3>& R,
                            const Matrix<3, 3>& Kp,
                            const Matrix<3, 3>& Kd,
-                           const Vector<3>& F_lim, 
+                           const Vector<3>& F_lim,
                            float m,
                            Matrix<3, 3>* R_des,
                            float* thrust) {
@@ -214,6 +215,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     memset(&control_mode, 0, sizeof(control_mode));
     struct vehicle_local_position_setpoint_s local_pos_sp;
     memset(&local_pos_sp, 0, sizeof(local_pos_sp));
+    struct manual_control_setpoint_s manual;
+    memset(&manual, 0, sizeof(manual));
 
     /* subscribe */
     int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
@@ -222,6 +225,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     int local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
     int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
     int att_sp_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
+    int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
 
     /* advertise */
     orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
@@ -270,10 +274,11 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     thread_running = true;
 
     // Here are some matrices.
-    Matrix<3, 3> R, R_des, Kp, Kd;
+    Matrix<3, 3> R, R_des, Kp, Kd, R_yaw;
     Vector<3> F_lim;
     Vector<10> refpoint;
     Vector<6> state;
+    Vector<3> sp_move_rate;
     float thrust = 0.0f;
     // Keep track of what the previous flags were.
     bool position_enabled_before = false, altitude_enabled_before = false;
@@ -297,9 +302,13 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     fds[0].fd = local_pos_sub;
     fds[0].events = POLLIN;
 
+    float dt = 0.0f;
+
     while (!thread_should_exit) {
-        int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
+        int ret = poll(fds, 1, 200); // wait maximal 20 ms = 50 Hz minimum rate
         t = hrt_absolute_time();
+        dt = (t - t_last)*0.000001;
+
 
         if (ret < 0) {
             /* poll error */
@@ -355,6 +364,11 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 orb_copy(ORB_ID(vehicle_attitude_setpoint), att_sp_sub, &att_sp);
             }
 
+            orb_check(manual_sub, &updated);
+            if (updated) {
+                orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
+            }
+
             // Crap to figure out refpoints.
             // Set the refpoints if we're just switching into this mode.
             if (control_mode.flag_control_altitude_enabled &&
@@ -381,6 +395,29 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 position_enabled_before = false;
             }
 
+
+
+            // Adjust the setpoints if the sticks are not 0.
+            float dz = 0.1f;
+            float stick_scale = 1.0f;
+            if (control_mode.flag_control_position_enabled) {
+                // Sticks are in the local frame.
+                sp_move_rate.zero();
+                if (fabs(manual.x) > 0.1) {
+                    sp_move_rate(0) = manual.x * stick_scale * dt;
+                }
+                if (fabs(manual.y) > 0.1) {
+                    sp_move_rate(1) = manual.y * stick_scale * dt;
+                }
+
+                // Rotate back into world frame.
+                R_yaw.from_euler(0.0f, 0.0f, att.yaw);
+                sp_move_rate = R_yaw * sp_move_rate;
+
+                refpoint(0) += sp_move_rate(0);
+                refpoint(1) += sp_move_rate(1);
+            }
+
             // Actual control loop.
             if (control_mode.flag_control_altitude_enabled ||
                 control_mode.flag_control_position_enabled) {
@@ -405,46 +442,62 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     Kp(1, 1) = 0.0f;
                     Kd(0, 0) = 0.0f;
                     Kd(1, 1) = 0.0f;
+                    Kp(2, 2) = k_p_gain_z;
+                    Kd(2, 2) = k_d_gain_z;
                 } else {
                     Kp(0, 0) = k_p_gain_xy;
                     Kp(1, 1) = k_p_gain_xy;
                     Kd(0, 0) = k_d_gain_xy;
                     Kd(1, 1) = k_d_gain_xy;
+                    Kp(2, 2) = k_p_gain_z;
+                    Kd(2, 2) = k_d_gain_z;
                 }
-                refpoint(2) = -1.0f;
+                //refpoint(2) = -1.0f;
 
-                PositionControllerPID(refpoint, state, R, Kp, Kd, 
+                PositionControllerPID(refpoint, state, R, Kp, Kd,
                                       F_lim, m, &R_des, &thrust);
                 // Scale by the thrust scale, because thrust is not in Newtons,
                 // it's in magic units of magic.
                 thrust = thrust/thrust_scale;
 
+                if (!control_mode.flag_control_position_enabled) {
+                    R_des.from_euler(0.0f, 0.0f, att.yaw);
+                    att_sp.roll_body = 0.0f;
+                    att_sp.pitch_body = 0.0f;
+                    att_sp.yaw_body = att.yaw;
+                } else {
+                    // Fill this crap in too...
+                    Vector<3> euler_angles;
+                    euler_angles = R_des.to_euler();
+                    att_sp.roll_body = euler_angles(0);
+                    att_sp.pitch_body = euler_angles(1);
+                    att_sp.yaw_body = euler_angles(2);
+                }
+
                 // Fill in the attitude setpoint from this info.
                 memcpy(&att_sp.R_body[0][0], R_des.data, sizeof(att_sp.R_body));
                 att_sp.R_valid = true;
-                // Fill this crap in too...
-                Vector<3> euler_angles;
-                euler_angles = R_des.to_euler();
-                att_sp.roll_body = euler_angles(0);
-                att_sp.pitch_body = euler_angles(1);
-                att_sp.yaw_body = euler_angles(2);
+
                 att_sp.thrust = thrust;
             } else {
+                /*refpoint(9) = att.yaw;
                 // Clear out the struct.
                 // Do I need to know this? I dunno.
-                R.identity();
+                R.from_euler(0.0f, 0.0f, att.yaw);
+
                 memcpy(&att_sp.R_body[0][0], R.data, sizeof(att_sp.R_body));
                 att_sp.R_valid = true;
 
                 att_sp.roll_body = 0.0f;
                 att_sp.pitch_body = 0.0f;
                 att_sp.yaw_body = att.yaw;
-                att_sp.thrust = 0.0f;
+                att_sp.thrust = 0.0f; */
             }
 
             t_last = t;
         }
 
+        //if (t > pub_last + pub_interval) {
         if (t > pub_last + pub_interval
              && (control_mode.flag_control_altitude_enabled ||
                 control_mode.flag_control_position_enabled)) {
@@ -457,7 +510,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             local_pos_sp.x = refpoint(0);
             local_pos_sp.y = refpoint(1);
             local_pos_sp.z = refpoint(2);
-            local_pos_sp.yaw = att_sp.yaw_body;
+            local_pos_sp.yaw = refpoint(9);
 
             orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
             orb_publish(ORB_ID(vehicle_local_position_setpoint), lpos_sp_pub, &local_pos_sp);
@@ -466,7 +519,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(5000);
+        usleep(5000); // 5 ms
 
         //usleep(1000000); // 1 s
         //usleep(40000);
