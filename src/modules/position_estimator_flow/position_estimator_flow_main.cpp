@@ -36,7 +36,7 @@ static bool thread_should_exit = false; /**< Deamon exit flag */
 static bool thread_running = false; /**< Deamon status flag */
 static int position_estimator_flow_task; /**< Handle of deamon task / thread */
 static bool verbose_mode = false;
-static const uint32_t pub_interval = 20000; // limit publish rate to 100 Hz
+static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
 
 
 extern "C" __EXPORT int position_estimator_flow_main(int argc, char *argv[]);
@@ -155,7 +155,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     //struct position_estimator_flow_param_handles pos_flow_param_handles;
     /* initialize parameter handles */
     //parameters_init(&pos_flow_param_handles);
-    
+
     // Let's start with the fun stuff now.
     // First, create the EKF object.
     // Also create the sonar prefilter object.
@@ -195,12 +195,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     /* first parameters update */
     parameters_update(&pos_flow_param_handles, &params);
 
-    ekf.setParams(params.sigma_acc, params.sigma_baro, params.sigma_flow, 
-                  params.sigma_sonar, params.sigma_pos_noise, 
+    ekf.setParams(params.sigma_acc, params.sigma_baro, params.sigma_flow,
+                  params.sigma_sonar, params.sigma_pos_noise,
                   params.sigma_vel_noise, params.sigma_acc_noise,
                   params.sigma_acc_bias, params.sigma_baro_bias);
     flow_frame_rate = params.flow_frame_rate;
-    prefilter.setParams(params.sonar_min_value, params.sonar_max_value, 
+    prefilter.setParams(params.sonar_min_value, params.sonar_max_value,
                         params.sonar_mean_threshold, params.sonar_vel_threshold);
 
     // Let's start this loop up!
@@ -295,15 +295,15 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 orb_copy(ORB_ID(parameter_update), parameter_update_sub, &update);
                 parameters_update(&pos_flow_param_handles, &params);
 
-                ekf.setParams(params.sigma_acc, params.sigma_baro, 
-                        params.sigma_flow, 
-                        params.sigma_sonar, params.sigma_pos_noise, 
+                ekf.setParams(params.sigma_acc, params.sigma_baro,
+                        params.sigma_flow,
+                        params.sigma_sonar, params.sigma_pos_noise,
                         params.sigma_vel_noise, params.sigma_acc_noise,
                         params.sigma_acc_bias, params.sigma_baro_bias);
                 flow_frame_rate = params.flow_frame_rate;
-                prefilter.setParams(params.sonar_min_value, 
-                                    params.sonar_max_value, 
-                                    params.sonar_mean_threshold, 
+                prefilter.setParams(params.sonar_min_value,
+                                    params.sonar_max_value,
+                                    params.sonar_mean_threshold,
                                     params.sonar_vel_threshold);
 
             }
@@ -382,11 +382,11 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             // Now do the kalman stuff.
             if (new_attitude || new_sensors || new_flow) {
                 ekf.ekfStep(t, z, rotmat, new_sensors, new_flow, valid_sonar, &x);
-                //warnx("ekf update, u: %.2f %.2f %.2f %.2f", 
+                //warnx("ekf update, u: %.2f %.2f %.2f %.2f",
                 //       u(0), u(1), u(2));
-                //warnx("ekf update, z: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
+                //warnx("ekf update, z: %.2f %.2f %.2f %.2f %.2f %.2f %.2f",
                 //        z(0), z(1), z(2), z(3), z(4), z(5), z(6));
-                //warnx("ekf update, x: %.2f %.2f %.2f %.2f %.2f %.2f %.2f", 
+                //warnx("ekf update, x: %.2f %.2f %.2f %.2f %.2f %.2f %.2f",
                 //        x(0), x(1), x(2), x(3), x(4), x(5));
 
                 // Lowpass filter the x and y velocities to output.
@@ -430,7 +430,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(10000);
+        usleep(5000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);
