@@ -26,6 +26,7 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_local_position.h>
 #include <uORB/topics/vehicle_local_position_setpoint.h>
+#include <uORB/topics/set_local_position_setpoint.h>
 #include <uORB/uORB.h>
 
 #include "helen_pos_control_params.h"
@@ -217,6 +218,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     memset(&local_pos_sp, 0, sizeof(local_pos_sp));
     struct manual_control_setpoint_s manual;
     memset(&manual, 0, sizeof(manual));
+    struct set_local_position_setpoint_s local_pos_off;
+    memset(&local_pos_off, 0, sizeof(local_pos_off));
 
     /* subscribe */
     int parameter_update_sub = orb_subscribe(ORB_ID(parameter_update));
@@ -226,6 +229,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     int control_mode_sub = orb_subscribe(ORB_ID(vehicle_control_mode));
     int att_sp_sub = orb_subscribe(ORB_ID(vehicle_attitude_setpoint));
     int manual_sub = orb_subscribe(ORB_ID(manual_control_setpoint));
+    int set_lpos_sp_sub = orb_subscribe(ORB_ID(set_local_position_setpoint));
 
     /* advertise */
     orb_advert_t att_sp_pub = orb_advertise(ORB_ID(vehicle_attitude_setpoint), &att_sp);
@@ -279,6 +283,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     Vector<10> refpoint;
     Vector<6> state;
     Vector<3> sp_move_rate;
+    Vector<3> sp_offset;
     float thrust = 0.0f;
     // Keep track of what the previous flags were.
     bool position_enabled_before = false, altitude_enabled_before = false;
@@ -296,6 +301,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     F_lim(2) = f_lim_z;
 
     refpoint.zero();
+    sp_move_rate.zero();
+    sp_offset.zero();
 
     // Let's set up the main loop now.
     struct pollfd fds[1];
@@ -369,6 +376,11 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 orb_copy(ORB_ID(manual_control_setpoint), manual_sub, &manual);
             }
 
+            orb_check(set_lpos_sp_sub, &updated);
+            if (updated) {
+                orb_copy(ORB_ID(set_local_position_setpoint), set_lpos_sp_sub, &local_pos_off);
+            }
+
             // Crap to figure out refpoints.
             // Set the refpoints if we're just switching into this mode.
             if (control_mode.flag_control_altitude_enabled &&
@@ -414,8 +426,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 R_yaw.from_euler(0.0f, 0.0f, att.yaw);
                 sp_move_rate = R_yaw * sp_move_rate;
 
-                refpoint(0) += sp_move_rate(0);
-                refpoint(1) += sp_move_rate(1);
+                local_pos_sp.x += sp_move_rate(0);
+                local_pos_sp.y += sp_move_rate(1);
             }
 
             // Actual control loop.
@@ -434,8 +446,20 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 // R! do R. Copy it from attitude.
                 memcpy(R.data, att.R, sizeof(R.data));
 
-                // Refpoint is stationary in this implementation.
-                // But maybe should make sure yaw is correct...
+                if (control_mode.flag_control_position_enabled) {
+                    // Maybe look into not doing this ALL the time?
+                    // R_yaw is already set from above.
+                    sp_offset(0) = local_pos_off.x;
+                    sp_offset(1) = local_pos_off.y;
+                    sp_offset(2) = local_pos_off.z;
+                    sp_offset = R_yaw * sp_offset;
+                }
+
+                // Set the refpoint from lpos settings and the offsets.
+                refpoint(0) = local_pos_sp.x + sp_offset(0);
+                refpoint(1) = local_pos_sp.y + sp_offset(1);
+                refpoint(2) = local_pos_sp.z + sp_offset(2);
+                refpoint(9) = local_pos_sp.yaw;
 
                 if (!control_mode.flag_control_position_enabled) {
                     Kp(0, 0) = 0.0f;
@@ -507,10 +531,10 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             att_sp.timestamp = t;
 
             // Fill in extra local position setpoints.
-            local_pos_sp.x = refpoint(0);
+            /*local_pos_sp.x = refpoint(0);
             local_pos_sp.y = refpoint(1);
             local_pos_sp.z = refpoint(2);
-            local_pos_sp.yaw = refpoint(9);
+            local_pos_sp.yaw = refpoint(9); */
 
             orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
             orb_publish(ORB_ID(vehicle_local_position_setpoint), lpos_sp_pub, &local_pos_sp);

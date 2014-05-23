@@ -117,6 +117,9 @@ ORB_DEFINE(vehicle_control_mode, struct vehicle_control_mode_s);
 #include "topics/vehicle_local_position_setpoint.h"
 ORB_DEFINE(vehicle_local_position_setpoint, struct vehicle_local_position_setpoint_s);
 
+#include "topics/set_local_position_setpoint.h"
+ORB_DEFINE(set_local_position_setpoint, struct set_local_position_setpoint_s);
+
 #include "topics/vehicle_bodyframe_speed_setpoint.h"
 ORB_DEFINE(vehicle_bodyframe_speed_setpoint, struct vehicle_bodyframe_speed_setpoint_s);
 

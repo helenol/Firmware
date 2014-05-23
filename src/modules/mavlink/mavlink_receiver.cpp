@@ -106,6 +106,7 @@ MavlinkReceiver::MavlinkReceiver(Mavlink *parent) :
 	_telemetry_status_pub(-1),
 	_rc_pub(-1),
 	_manual_pub(-1),
+    _set_lpos_sp_pub(-1),
 	_hil_frames(0),
 	_old_timestamp(0),
 	_hil_local_proj_inited(0),
@@ -149,6 +150,10 @@ MavlinkReceiver::handle_message(mavlink_message_t *msg)
 	case MAVLINK_MSG_ID_MANUAL_CONTROL:
 		handle_message_manual_control(msg);
 		break;
+
+    case MAVLINK_MSG_ID_SET_LOCAL_POSITION_SETPOINT:
+        handle_message_set_local_position_setpoint(msg);
+        break;
 
 	default:
 		break;
@@ -339,6 +344,7 @@ MavlinkReceiver::handle_message_vicon_position_estimate(mavlink_message_t *msg)
 	}
 }
 
+
 void
 MavlinkReceiver::handle_message_quad_swarm_roll_pitch_yaw_thrust(mavlink_message_t *msg)
 {
@@ -449,6 +455,29 @@ MavlinkReceiver::handle_message_manual_control(mavlink_message_t *msg)
 	} else {
 		orb_publish(ORB_ID(manual_control_setpoint), _manual_pub, &manual);
 	}
+}
+
+void
+MavlinkReceiver::handle_message_set_local_position_setpoint(mavlink_message_t *msg)
+{
+    mavlink_set_local_position_setpoint_t sp;
+    mavlink_msg_set_local_position_setpoint_decode(msg, &sp);
+
+    struct set_local_position_setpoint_s setpoint;
+    memset(&setpoint, 0, sizeof(setpoint));
+
+    //setpoint.timestamp = hrt_absolute_time();
+    setpoint.x = sp.x;
+    setpoint.y = sp.y;
+    setpoint.z = sp.z;
+    setpoint.yaw = sp.yaw;
+
+    if (_set_lpos_sp_pub < 0) {
+        _set_lpos_sp_pub = orb_advertise(ORB_ID(set_local_position_setpoint), &setpoint);
+
+    } else {
+        orb_publish(ORB_ID(set_local_position_setpoint), _set_lpos_sp_pub, &setpoint);
+    }
 }
 
 void
@@ -927,7 +956,7 @@ void MavlinkReceiver::print_status()
 
 void *MavlinkReceiver::start_helper(void *context)
 {
-	MavlinkReceiver *rcv = new MavlinkReceiver((Mavlink *)context);
+	MavlinkReceiver *rcv  = new MavlinkReceiver((Mavlink *)context);
 
 	rcv->receive_thread(NULL);
 
