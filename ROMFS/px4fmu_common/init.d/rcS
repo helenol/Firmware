@@ -572,7 +572,8 @@ then
 
     # Main mavlink
     # settings for computer link
-    mavlink start -d /dev/ttyS0 -m custom -b 57600
+    #mavlink start -d /dev/ttyS0 -m normal -b 57600
+    mavlink start -d /dev/ttyS0 -m custom -b 57600 -f -p
     mavlink stream -d /dev/ttyS0 -s SYS_STATUS -r 1
     mavlink stream -d /dev/ttyS0 -s ROLL_PITCH_YAW_THRUST_SETPOINT -r 1
     mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_SETPOINT -r 1
@@ -588,11 +589,9 @@ then
     # Optical Flow
     mavlink start -d /dev/ttyS3 -m custom -b 115200
     # Android board
-    #mavlink start -d /dev/ttyS2 -m custom -b 115200 -f -p -w
-    #mavlink stream -d /dev/ttyS2 -s VICON_POSITION_ESTIMATE -r 100
-    #mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 30
-    #mavlink stream -d /dev/ttyS2 -s LOCAL_POSITION_NED -r 30
-
+    mavlink start -d /dev/ttyS2 -m custom -b 115200 -w -f -p
+    mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 30
+    mavlink stream -d /dev/ttyS2 -s LOCAL_POSITION_NED -r 30
 
 	if [ $EXIT_ON_END == yes ]
 	then

@@ -419,7 +419,7 @@ Mavlink::instance_exists(const char *device_name, Mavlink *self)
 void
 Mavlink::forward_message(mavlink_message_t *msg, Mavlink *self)
 {
-	
+
 	Mavlink *inst;
 	LL_FOREACH(_mavlink_instances, inst) {
 		if (inst != self) {
@@ -1855,6 +1855,8 @@ Mavlink::task_main(int argc, char *argv[])
 
 		case 'w':
 			_wait_to_transmit = true;
+            _passing_on = true;
+            _forwarding_on = true;
 			break;
 
 		default:
@@ -2095,7 +2097,7 @@ Mavlink::task_main(int argc, char *argv[])
 			int available = message_buffer_get_ptr(&read_ptr, &is_part);
 			pthread_mutex_unlock(&_message_buffer_mutex);
 
-			if (available > 0) {
+			if (available > 0 && should_transmit()) {
 				/* write first part of buffer */
 				_mavlink_resend_uart(_channel, (const mavlink_message_t*)read_ptr);
 				message_buffer_mark_read(available);

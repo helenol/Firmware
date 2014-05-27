@@ -385,8 +385,11 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             // Set the refpoints if we're just switching into this mode.
             if (control_mode.flag_control_altitude_enabled &&
                 !altitude_enabled_before) {
-                refpoint(2) = local_pos.z;
-                refpoint(9) = att.yaw;
+                local_pos_sp.z = local_pos.z;
+                local_pos_sp.yaw = att.yaw;
+
+                //refpoint(2) = local_pos.z;
+                //refpoint(9) = att.yaw;
                 altitude_enabled_before = true;
             }
             if (!control_mode.flag_control_altitude_enabled &&
@@ -396,10 +399,16 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             // Set the refpoints if we're just switching into this mode.
             if (control_mode.flag_control_position_enabled &&
                 !position_enabled_before) {
-                refpoint(0) = local_pos.x;
-                refpoint(1) = local_pos.y;
-                refpoint(2) = local_pos.z;
-                refpoint(9) = att.yaw;
+
+                local_pos_sp.x = local_pos.x;
+                local_pos_sp.y = local_pos.y;
+                local_pos_sp.z = local_pos.z;
+                local_pos_sp.yaw = att.yaw;
+
+                //refpoint(0) = local_pos.x;
+                //refpoint(1) = local_pos.y;
+                //refpoint(2) = local_pos.z;
+                //refpoint(9) = att.yaw;
                 position_enabled_before = true;
             }
             if (!control_mode.flag_control_position_enabled &&
@@ -446,9 +455,12 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 // R! do R. Copy it from attitude.
                 memcpy(R.data, att.R, sizeof(R.data));
 
+                sp_offset.zero();
+
                 if (control_mode.flag_control_position_enabled) {
                     // Maybe look into not doing this ALL the time?
                     // R_yaw is already set from above.
+                    sp_offset.zero();
                     sp_offset(0) = local_pos_off.x;
                     sp_offset(1) = local_pos_off.y;
                     sp_offset(2) = local_pos_off.z;
@@ -459,7 +471,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 refpoint(0) = local_pos_sp.x + sp_offset(0);
                 refpoint(1) = local_pos_sp.y + sp_offset(1);
                 refpoint(2) = local_pos_sp.z + sp_offset(2);
-                refpoint(9) = local_pos_sp.yaw;
+                refpoint(9) = att.yaw;//local_pos_sp.yaw;
 
                 if (!control_mode.flag_control_position_enabled) {
                     Kp(0, 0) = 0.0f;
