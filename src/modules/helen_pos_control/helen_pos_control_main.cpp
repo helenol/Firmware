@@ -541,6 +541,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
 
             // Fill in extra attitude_sp parameters.
             att_sp.timestamp = t;
+            att_sp.R_valid = true;
 
             // Fill in extra local position setpoints.
             /*local_pos_sp.x = refpoint(0);

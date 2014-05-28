@@ -1843,6 +1843,7 @@ Mavlink::task_main(int argc, char *argv[])
 
 		case 'f':
 			_forwarding_on = true;
+            _passing_on = true;
 			break;
 
 		case 'p':
