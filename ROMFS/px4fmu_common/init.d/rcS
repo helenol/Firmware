@@ -447,7 +447,7 @@ then
 	#
 	if [ $OUTPUT_MODE == ardrone ]
 	then
-		ardrone_interface start -d /dev/ttyS1
+		#ardrone_interface start -d /dev/ttyS1
 	fi
 
 	#
@@ -582,8 +582,6 @@ then
     #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 2
     #mavlink stream -d /dev/ttyS0 -s RC_CHANNELS_RAW -r 5
 
-
-    #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 10
     # settings for vicon link
     #mavlink start -d /dev/ttyS0 -m custom -b 115200
     # Optical Flow
@@ -593,11 +591,16 @@ then
     mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 30
     mavlink stream -d /dev/ttyS2 -s LOCAL_POSITION_NED -r 30
 
+    usleep 1000000
+    ardrone_interface start -d /dev/ttyS1
+
 	if [ $EXIT_ON_END == yes ]
 	then
 		echo "[init] Exit from nsh"
 		exit
 	fi
+
+
 
 # End of autostart
 fi

@@ -460,7 +460,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 if (control_mode.flag_control_position_enabled) {
                     // Maybe look into not doing this ALL the time?
                     // R_yaw is already set from above.
-                    sp_offset.zero();
+                    //sp_offset.zero();
                     sp_offset(0) = local_pos_off.x;
                     sp_offset(1) = local_pos_off.y;
                     sp_offset(2) = local_pos_off.z;
@@ -471,7 +471,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 refpoint(0) = local_pos_sp.x + sp_offset(0);
                 refpoint(1) = local_pos_sp.y + sp_offset(1);
                 refpoint(2) = local_pos_sp.z + sp_offset(2);
-                refpoint(9) = att.yaw;//local_pos_sp.yaw;
+                refpoint(9) = local_pos_sp.yaw;//att.yaw;//local_pos_sp.yaw;
 
                 if (!control_mode.flag_control_position_enabled) {
                     Kp(0, 0) = 0.0f;
