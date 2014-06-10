@@ -575,12 +575,16 @@ then
     #mavlink start -d /dev/ttyS0 -m normal -b 57600
     mavlink start -d /dev/ttyS0 -m custom -b 57600 -f -p
     mavlink stream -d /dev/ttyS0 -s SYS_STATUS -r 1
-    mavlink stream -d /dev/ttyS0 -s ROLL_PITCH_YAW_THRUST_SETPOINT -r 1
-    mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_SETPOINT -r 1
+    #mavlink stream -d /dev/ttyS0 -s ROLL_PITCH_YAW_THRUST_SETPOINT -r 1
+    #mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_SETPOINT -r 1
     mavlink stream -d /dev/ttyS0 -s ATTITUDE -r 5
-    mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_NED -r 5
+    #mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_NED -r 5
     #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 2
     #mavlink stream -d /dev/ttyS0 -s RC_CHANNELS_RAW -r 5
+
+    mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_NED -r 20
+
+    mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 20
 
     # settings for vicon link
     #mavlink start -d /dev/ttyS0 -m custom -b 115200

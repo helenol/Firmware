@@ -27,7 +27,7 @@
 #include <uORB/uORB.h>
 
 #include "flow_ekf_sep.h"
-#include "sonar_prefilter.h"
+#include "sonar_bayes.h"
 #include "position_estimator_flow_params.h"
 
 using namespace math;
@@ -160,7 +160,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     // First, create the EKF object.
     // Also create the sonar prefilter object.
     FlowEKFSep ekf;
-    SonarPrefilter prefilter;
+    SonarBayes prefilter;
 
     // Configure.
     // TODO: Load all the parameter values and configure.
@@ -200,8 +200,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                   params.sigma_vel_noise, params.sigma_acc_noise,
                   params.sigma_acc_bias, params.sigma_baro_bias);
     flow_frame_rate = params.flow_frame_rate;
-    prefilter.setParams(params.sonar_min_value, params.sonar_max_value,
-                        params.sonar_mean_threshold, params.sonar_vel_threshold);
+    //prefilter.setParams(params.sonar_min_value, params.sonar_max_value,
+    //                    params.sonar_mean_threshold, params.sonar_vel_threshold);
 
     // Let's start this loop up!
 
@@ -301,10 +301,10 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                         params.sigma_vel_noise, params.sigma_acc_noise,
                         params.sigma_acc_bias, params.sigma_baro_bias);
                 flow_frame_rate = params.flow_frame_rate;
-                prefilter.setParams(params.sonar_min_value,
-                                    params.sonar_max_value,
-                                    params.sonar_mean_threshold,
-                                    params.sonar_vel_threshold);
+                //prefilter.setParams(params.sonar_min_value,
+                //                    params.sonar_max_value,
+                //                    params.sonar_mean_threshold,
+                //                    params.sonar_vel_threshold);
 
             }
 
