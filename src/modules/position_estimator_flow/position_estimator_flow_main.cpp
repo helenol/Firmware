@@ -370,8 +370,14 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 //    z(4) = 0.0f;
                 //    z(5) = 0.0f;
                 //} else {
-                z(4) = -flow.flow_raw_y/10.0f/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
-                z(5) = flow.flow_raw_x/10.0f/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
+
+                // FLOW-board compensated flow.
+                z(4) = -flow.flow_comp_y_m;
+                z(5) = flow.flow_comp_x_m;
+
+                // Uncomment this to have FMU-compensated flow back.
+                //z(4) = -flow.flow_raw_y/10.0f/flow_f*z_pos*flow_frame_rate - attr_y*z_pos;
+                //z(5) = flow.flow_raw_x/10.0f/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
                 //}
                 z(6) = flow.ground_distance_m;
                 valid_sonar = prefilter.isValid(t, flow.ground_distance_m);

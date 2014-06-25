@@ -10,23 +10,23 @@ void SonarBayes::init(uint64_t t) {
     last_time = t;
 
     // Also create the matrices.
-    from_state_0(0, 0) = 0.95f;
-    from_state_0(1, 0) = 0.60f;
-    from_state_0(2, 0) = 0.50f;
-    from_state_0(3, 0) = 0.40f;
+    from_state_0(0, 0) = 0.90f;
+    from_state_0(1, 0) = 0.50f;
+    from_state_0(2, 0) = 0.40f;
+    from_state_0(3, 0) = 0.30f;
     from_state_0(0, 1) = 1 - from_state_0(0, 0);
-    from_state_0(1, 0) = 1 - from_state_0(1, 0);
-    from_state_0(2, 0) = 1 - from_state_0(2, 0);
-    from_state_0(3, 0) = 1 - from_state_0(3, 0);
+    from_state_0(1, 1) = 1 - from_state_0(1, 0);
+    from_state_0(2, 1) = 1 - from_state_0(2, 0);
+    from_state_0(3, 1) = 1 - from_state_0(3, 0);
 
-    from_state_1(0, 0) = 0.01f;
+    from_state_1(0, 0) = 0.05f;
     from_state_1(1, 0) = 0.5f;
-    from_state_1(2, 0) = 0.9f;
+    from_state_1(2, 0) = 0.8f;
     from_state_1(3, 0) = 0.95f;
     from_state_1(0, 1) = 1 - from_state_1(0, 0);
-    from_state_1(1, 0) = 1 - from_state_1(1, 0);
-    from_state_1(2, 0) = 1 - from_state_1(2, 0);
-    from_state_1(3, 0) = 1 - from_state_1(3, 0);
+    from_state_1(1, 1) = 1 - from_state_1(1, 0);
+    from_state_1(2, 1) = 1 - from_state_1(2, 0);
+    from_state_1(3, 1) = 1 - from_state_1(3, 0);
 
     // Fill in current state.
     state = 0;
@@ -46,17 +46,23 @@ bool SonarBayes::isValid(uint64_t t, float sonar) {
 
     float diff = fabs(sonar - last_sonar);
 
+    // If this is the same value as before, and if it's been less than 100 ms
+    // from the last measurement, discard this reading.
+    if (dt < 0.1 && diff < 0.01) {
+        return false;
+    }
+
     // If we're outside the range that the sonar can actually sense, throw this
     // measurement out.
-    if (sonar >= min_val && sonar < max_val) {
+    if (sonar <= min_val || sonar > max_val) {
         return false;
     }
 
     char seq = 0;
 
-    if (diff < 0.01f) {
+    if (diff < 0.05f) {
         seq = 0;
-    } else if (diff < 0.1f) {
+    } else if (diff < 0.2f) {
         seq = 1;
     } else if (diff < 0.5f) {
         seq = 2;
