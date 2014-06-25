@@ -595,8 +595,8 @@ then
     mavlink stream -d /dev/ttyS2 -s ATTITUDE -r 30
     mavlink stream -d /dev/ttyS2 -s LOCAL_POSITION_NED -r 30
 
-    usleep 1000000
-    ardrone_interface start -d /dev/ttyS1
+    #usleep 1000000
+    #ardrone_interface start -d /dev/ttyS1
 
 	if [ $EXIT_ON_END == yes ]
 	then
