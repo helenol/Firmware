@@ -18,6 +18,7 @@ struct position_estimator_flow_params {
     float sonar_mean_threshold;
     float sonar_vel_threshold;
     float flow_frame_rate;
+    float sonar_prefilter;
 };
 
 struct position_estimator_flow_param_handles {
@@ -35,6 +36,7 @@ struct position_estimator_flow_param_handles {
     param_t sonar_mean_threshold;
     param_t sonar_vel_threshold;
     param_t flow_frame_rate;
+    param_t sonar_prefilter;
 };
 
 /**
@@ -57,6 +59,7 @@ int parameters_init(struct position_estimator_flow_param_handles *h)
     h->sonar_mean_threshold = param_find("FLOW_SNR_MN_THR");
     h->sonar_vel_threshold = param_find("FLOW_SNR_VEL_THR");
     h->flow_frame_rate = param_find("FLOW_FLOW_FRAME");
+    h->sonar_prefilter = param_find("FLOW_SNR_PRFT");
 
     return OK;
 }
@@ -82,6 +85,7 @@ int parameters_update(const struct position_estimator_flow_param_handles *h,
     param_get(h->sonar_mean_threshold, &(p->sonar_mean_threshold));
     param_get(h->sonar_vel_threshold, &(p->sonar_vel_threshold));
     param_get(h->flow_frame_rate, &(p->flow_frame_rate));
+    param_get(h->sonar_prefilter, &(p->sonar_prefilter));
 
     return OK;
 }

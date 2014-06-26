@@ -582,9 +582,9 @@ then
     #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 2
     #mavlink stream -d /dev/ttyS0 -s RC_CHANNELS_RAW -r 5
 
-    mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_NED -r 20
+    #mavlink stream -d /dev/ttyS0 -s LOCAL_POSITION_NED -r 20
 
-    mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 20
+    #mavlink stream -d /dev/ttyS0 -s OPTICAL_FLOW -r 20
 
     # settings for vicon link
     #mavlink start -d /dev/ttyS0 -m custom -b 115200
