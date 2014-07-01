@@ -410,7 +410,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
             }
         }
 
-        if (t > pub_last + pub_interval) {
+        if (t >= pub_last + pub_interval) {
             pub_last = t;
             /* publish local position */
             local_pos.z_valid = true;
@@ -440,7 +440,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
         }
 
         // Sleep for 10 ms
-        usleep(5000);
+        usleep(2000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);

@@ -116,8 +116,10 @@ void PositionControllerPID(const Vector<10>& refpoint,
                            const Matrix<3, 3>& R,
                            const Matrix<3, 3>& Kp,
                            const Matrix<3, 3>& Kd,
+                           const Matrix<3, 3>& Ki,
                            const Vector<3>& F_lim,
                            float m,
+                           Vector<3>& e_i,
                            Matrix<3, 3>* R_des,
                            float* thrust) {
 
@@ -143,9 +145,14 @@ void PositionControllerPID(const Vector<10>& refpoint,
     // gravity vector
     g_vect(2) = -9.81f;
 
+    //float i_accum_gain = 0.01;
+    e_i(0) = e_i(0) + Ki(0, 0)*e_p(0);
+    e_i(1) = e_i(1) + Ki(1, 1)*e_p(1);
+    e_i(2) = e_i(2) + Ki(2, 2)*e_p(2);
+
     // desired Force vector in the worldframe
     Vector<3> F_des;
-    F_des = -(Kp*e_p + Kd*e_v + ff*m + g_vect*m);
+    F_des = -(Kp*e_p + Kd*e_v + e_i + ff*m + g_vect*m);
 
     if (fabsf(F_des(0)) >= F_lim(0)) {
         F_des(0) = sign(F_des(0))*F_lim(0);
@@ -164,7 +171,10 @@ void PositionControllerPID(const Vector<10>& refpoint,
     z_b(2) = R(2, 2);
 
     // desired thrust in body frame
-    *thrust = F_des*z_b;
+    //*thrust = F_des.transposed()*z_b;
+
+    *thrust = F_des.length();
+
     // desired body z axis
     z_B_des = F_des.normalized();
     // desired direction in world coordinates (Yaw angle)
@@ -241,8 +251,10 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     float m = 0.478f;      // kg
     float thrust_scale = 7.0f; // Thrust -> Force magic conversion units.
     float k_p_gain_z = 1.0f;
+    float k_i_gain_z = 0.0f;
     float k_d_gain_z = 0.0f;
     float k_p_gain_xy = 1.0f;
+    float k_i_gain_xy = 0.0f;
     float k_d_gain_xy = 0.0f;
     float f_lim_xy = 4.0f;
     float f_lim_z = 10.0f;
@@ -264,8 +276,10 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     thrust_scale = params.thrust_scale;
     k_p_gain_z = params.k_p_gain_z;
     k_d_gain_z = params.k_d_gain_z;
+    k_i_gain_z = params.k_i_gain_z;
     k_p_gain_xy = params.k_p_gain_xy;
     k_d_gain_xy = params.k_d_gain_xy;
+    k_i_gain_xy = params.k_i_gain_xy;
     f_lim_xy = params.f_lim_xy;
     f_lim_z = params.f_lim_z;
 
@@ -274,16 +288,18 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     hrt_abstime pub_last = hrt_absolute_time();
     hrt_abstime t_last = hrt_absolute_time();
     hrt_abstime t = hrt_absolute_time();
+    hrt_abstime switch_time = hrt_absolute_time();
 
     thread_running = true;
 
     // Here are some matrices.
-    Matrix<3, 3> R, R_des, Kp, Kd, R_yaw;
+    Matrix<3, 3> R, R_des, Kp, Kd, Ki, R_yaw;
     Vector<3> F_lim;
     Vector<10> refpoint;
     Vector<6> state;
     Vector<3> sp_move_rate;
     Vector<3> sp_offset;
+    Vector<3> e_i;
     float thrust = 0.0f;
     // Keep track of what the previous flags were.
     bool position_enabled_before = false, altitude_enabled_before = false;
@@ -296,13 +312,21 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     Kd(0, 0) = k_d_gain_xy;
     Kd(1, 1) = k_d_gain_xy;
     Kd(2, 2) = k_d_gain_z;
+    Ki.identity();
+    Ki(0, 0) = k_i_gain_xy;
+    Ki(1, 1) = k_i_gain_xy;
+    Ki(2, 2) = k_i_gain_z;
+
     F_lim(0) = f_lim_xy;
     F_lim(1) = f_lim_xy;
     F_lim(2) = f_lim_z;
 
+    e_i.zero();
     refpoint.zero();
     sp_move_rate.zero();
     sp_offset.zero();
+
+    bool offset_state = true;
 
     // Let's set up the main loop now.
     struct pollfd fds[1];
@@ -310,6 +334,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     fds[0].events = POLLIN;
 
     float dt = 0.0f;
+    float thrust_filt = 0.0f;
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 200); // wait maximal 20 ms = 50 Hz minimum rate
@@ -337,8 +362,10 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 thrust_scale = params.thrust_scale;
                 k_p_gain_z = params.k_p_gain_z;
                 k_d_gain_z = params.k_d_gain_z;
+                k_i_gain_z = params.k_i_gain_z;
                 k_p_gain_xy = params.k_p_gain_xy;
                 k_d_gain_xy = params.k_d_gain_xy;
+                k_i_gain_xy = params.k_i_gain_xy;
                 f_lim_xy = params.f_lim_xy;
                 f_lim_z = params.f_lim_z;
             }
@@ -390,6 +417,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
 
                 //refpoint(2) = local_pos.z;
                 //refpoint(9) = att.yaw;
+                e_i.zero();
                 altitude_enabled_before = true;
             }
             if (!control_mode.flag_control_altitude_enabled &&
@@ -409,6 +437,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 //refpoint(1) = local_pos.y;
                 //refpoint(2) = local_pos.z;
                 //refpoint(9) = att.yaw;
+                e_i.zero();
                 position_enabled_before = true;
             }
             if (!control_mode.flag_control_position_enabled &&
@@ -455,8 +484,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 // R! do R. Copy it from attitude.
                 memcpy(R.data, att.R, sizeof(R.data));
 
-                sp_offset.zero();
-
+                //sp_offset.zero();
+                /*
                 if (control_mode.flag_control_position_enabled) {
                     // Maybe look into not doing this ALL the time?
                     // R_yaw is already set from above.
@@ -465,6 +494,24 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     sp_offset(1) = local_pos_off.y;
                     sp_offset(2) = local_pos_off.z;
                     sp_offset = R_yaw * sp_offset;
+                }*/
+
+                // More fun stuff: switch the pos by 0.5 meters every 5 seconds.
+                if (control_mode.flag_control_position_enabled &&
+                    t - switch_time > 10*1000000) {
+                    if (!offset_state) {
+                        sp_offset.zero();
+                        //sp_offset(0) = 0.5;
+                        //sp_offset(1) = 0.5;
+                        //sp_offset(2) = 0.0;
+                        sp_offset(2) = -0.25;
+                        offset_state = true;
+                    } else {
+                        sp_offset.zero();
+                        offset_state = false;
+                    }
+                    sp_offset = R_yaw * sp_offset;
+                    switch_time = t;
                 }
 
                 // Set the refpoint from lpos settings and the offsets.
@@ -478,8 +525,11 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     Kp(1, 1) = 0.0f;
                     Kd(0, 0) = 0.0f;
                     Kd(1, 1) = 0.0f;
+                    Ki(0, 0) = 0.0f;
+                    Ki(1, 1) = 0.0f;
                     Kp(2, 2) = k_p_gain_z;
                     Kd(2, 2) = k_d_gain_z;
+                    Ki(2, 2) = k_i_gain_z;
                 } else {
                     Kp(0, 0) = k_p_gain_xy;
                     Kp(1, 1) = k_p_gain_xy;
@@ -487,20 +537,35 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     Kd(1, 1) = k_d_gain_xy;
                     Kp(2, 2) = k_p_gain_z;
                     Kd(2, 2) = k_d_gain_z;
+                    Ki(0, 0) = k_i_gain_xy;
+                    Ki(1, 1) = k_i_gain_xy;
+                    Ki(2, 2) = k_i_gain_z;
                 }
                 //refpoint(2) = -1.0f;
 
-                PositionControllerPID(refpoint, state, R, Kp, Kd,
-                                      F_lim, m, &R_des, &thrust);
+                PositionControllerPID(refpoint, state, R, Kp, Kd, Ki,
+                                      F_lim, m, e_i, &R_des, &thrust);
                 // Scale by the thrust scale, because thrust is not in Newtons,
                 // it's in magic units of magic.
                 thrust = thrust/thrust_scale;
 
+                float thrust_rc = 0.10;
+                float alpha = dt / (thrust_rc + dt);
+
+                if (thrust_filt < 0.01 || dt < 0.0001) {
+                    thrust_filt = thrust;
+                } else {
+                    thrust_filt = alpha*thrust + (1-alpha)*thrust_filt;
+                }
+                //x_vel_filt = alpha*x(3) + (1-alpha)*x_vel_filt;
+                //y_vel_filt = alpha*x(4) + (1-alpha)*y_vel_filt;
+
+
                 if (!control_mode.flag_control_position_enabled) {
-                    R_des.from_euler(0.0f, 0.0f, att.yaw);
-                    att_sp.roll_body = 0.0f;
-                    att_sp.pitch_body = 0.0f;
-                    att_sp.yaw_body = att.yaw;
+                    //R_des.from_euler(0.0f, 0.0f, att.yaw);
+                    //att_sp.roll_body = 0.0f;
+                    //att_sp.pitch_body = 0.0f;
+                    //att_sp.yaw_body = att.yaw;
                 } else {
                     // Fill this crap in too...
                     Vector<3> euler_angles;
@@ -508,13 +573,14 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     att_sp.roll_body = euler_angles(0);
                     att_sp.pitch_body = euler_angles(1);
                     att_sp.yaw_body = euler_angles(2);
+
+                    memcpy(&att_sp.R_body[0][0], R_des.data, sizeof(att_sp.R_body));
+                    att_sp.R_valid = true;
                 }
 
                 // Fill in the attitude setpoint from this info.
-                memcpy(&att_sp.R_body[0][0], R_des.data, sizeof(att_sp.R_body));
-                att_sp.R_valid = true;
-
-                att_sp.thrust = thrust;
+                att_sp.thrust = thrust_filt;
+                //att_sp.thrust = thrust;
             } else {
                 /*refpoint(9) = att.yaw;
                 // Clear out the struct.
@@ -530,6 +596,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 att_sp.thrust = 0.0f; */
             }
 
+            //printf("Loop timing: %Lu\n", t - t_last);
             t_last = t;
         }
 
@@ -549,14 +616,22 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             local_pos_sp.z = refpoint(2);
             local_pos_sp.yaw = refpoint(9); */
 
+            local_pos_sp.x += sp_offset(0);
+            local_pos_sp.y += sp_offset(1);
+            local_pos_sp.z += sp_offset(2);
+
             orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
             orb_publish(ORB_ID(vehicle_local_position_setpoint), lpos_sp_pub, &local_pos_sp);
+
+            local_pos_sp.x -= sp_offset(0);
+            local_pos_sp.y -= sp_offset(1);
+            local_pos_sp.z -= sp_offset(2);
 
             //warnx("Published.");
         }
 
         // Sleep for 10 ms
-        usleep(5000); // 5 ms
+        //usleep(5000); // 5 ms
 
         //usleep(1000000); // 1 s
         //usleep(40000);
