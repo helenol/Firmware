@@ -326,7 +326,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     sp_move_rate.zero();
     sp_offset.zero();
 
-    bool offset_state = true;
+    unsigned int offset_state = 0;
 
     // Let's set up the main loop now.
     struct pollfd fds[1];
@@ -335,6 +335,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
 
     float dt = 0.0f;
     float thrust_filt = 0.0f;
+    float z_filt = 0.0f;
+    float z_vel_filt = 0.0f;
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 200); // wait maximal 20 ms = 50 Hz minimum rate
@@ -375,6 +377,18 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             if (updated) {
                 orb_copy(ORB_ID(vehicle_local_position), local_pos_sub, &local_pos);
             }
+
+            float z_rc = 0.10;
+            float alpha = dt / (z_rc + dt);
+
+            if (fabs(z_filt) < 0.01 || dt < 0.0001) {
+                z_filt = local_pos.z;
+                z_vel_filt = local_pos.vz;
+            } else {
+                z_filt = alpha*local_pos.z + (1-alpha)*z_filt;
+                z_vel_filt = alpha*local_pos.vz + (1-alpha)*z_vel_filt;
+            }
+
 
             /* vehicle attitude */
             orb_check(vehicle_attitude_sub, &updated);
@@ -476,10 +490,12 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 // Fill in matrices I guess? State?
                 state(0) = local_pos.x;
                 state(1) = local_pos.y;
-                state(2) = local_pos.z;
+                //state(2) = local_pos.z;
                 state(3) = local_pos.vx;
                 state(4) = local_pos.vy;
-                state(5) = local_pos.vz;
+                //state(5) = local_pos.vz;
+                state(2) = z_filt;
+                state(5) = z_vel_filt;
 
                 // R! do R. Copy it from attitude.
                 memcpy(R.data, att.R, sizeof(R.data));
@@ -497,22 +513,68 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 }*/
 
                 // More fun stuff: switch the pos by 0.5 meters every 5 seconds.
-                if (control_mode.flag_control_position_enabled &&
+                /*if (control_mode.flag_control_position_enabled &&
                     t - switch_time > 10*1000000) {
-                    if (!offset_state) {
+                    if (offset_state == 0) {
                         sp_offset.zero();
                         //sp_offset(0) = 0.5;
                         //sp_offset(1) = 0.5;
                         //sp_offset(2) = 0.0;
-                        sp_offset(2) = -0.25;
-                        offset_state = true;
+                        //sp_offset(2) = -0.25;
+                        offset_state = 1;
+                    } else if (offset_state == 1) {
+                        sp_offset.zero();
+                        sp_offset(0) = 1.0;
+                        offset_state = 2;
+                    } else if (offset_state == 2) {
+                        sp_offset.zero();
+                        sp_offset(0) = 1.0;
+                        sp_offset(1) = 1.0;
+                        offset_state = 3;
                     } else {
                         sp_offset.zero();
-                        offset_state = false;
+                        sp_offset(0) = 0;
+                        sp_offset(1) = 1.0;
+                        offset_state = 0;
                     }
+
                     sp_offset = R_yaw * sp_offset;
                     switch_time = t;
+                } */
+
+                if (control_mode.flag_control_position_enabled &&
+                    t - switch_time > 5*1000000) {
+                    if (offset_state == 0) {
+                        Vector<3> new_offset;
+                        new_offset.zero();
+                        new_offset(0) = 1.0f;
+                        //sp_offset.zero();
+                        //sp_offset(0) = 1.0;
+                        //sp_offset(0) = 0.5;
+                        //sp_offset(1) = 0.5;
+                        //sp_offset(2) = 0.0;
+                        //sp_offset(2) = -0.25;
+                        //local_pos_sp.yaw += PI;
+                        offset_state = 1;
+
+                        R_yaw.from_euler(0.0f, 0.0f, local_pos_sp.yaw);
+                        sp_offset += R_yaw * new_offset;
+                    } else if (offset_state == 1) {
+                        //sp_offset.zero();
+                        //sp_offset(0) = 1.0;
+                        local_pos_sp.yaw += PI/2;
+                        offset_state = 0;
+                    }
+                    if (local_pos_sp.yaw > PI) {
+                        local_pos_sp.yaw -= 2*PI;
+                    }
+                    if (local_pos_sp.yaw < -PI) {
+                        local_pos_sp.yaw += 2*PI;
+                    }
+
+                    switch_time = t;
                 }
+
 
                 // Set the refpoint from lpos settings and the offsets.
                 refpoint(0) = local_pos_sp.x + sp_offset(0);
@@ -550,7 +612,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 thrust = thrust/thrust_scale;
 
                 float thrust_rc = 0.10;
-                float alpha = dt / (thrust_rc + dt);
+                float alpha = 1.0f;//dt / (thrust_rc + dt);
 
                 if (thrust_filt < 0.01 || dt < 0.0001) {
                     thrust_filt = thrust;

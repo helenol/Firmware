@@ -34,7 +34,7 @@ void FlowEKFSep::init(uint64_t t, const math::Vector<N_STATES>& x, float p_covar
 }
 
 
-void FlowEKFSep::setParams(float sigma_acc, float sigma_baro, 
+void FlowEKFSep::setParams(float sigma_acc, float sigma_baro,
                    float sigma_flow, float sigma_sonar,
                    float sigma_pos_noise, float sigma_vel_noise,
                    float sigma_acc_noise,
@@ -78,7 +78,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     Vector<3> sonar;
     sonar.zero();
     sonar(2) = z(6);
-    sonar = rotmat*sonar;
+    //sonar = rotmat*sonar;
 
     // Keep baro and sonar unrotated, because they're already in inertial frame.
 
@@ -99,7 +99,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     kfx.ekfStep(dt, z_x, new_sensors, new_flow, valid_sonar, &x_x);
     kfy.ekfStep(dt, z_y, new_sensors, new_flow, valid_sonar, &x_y);
     kfz.ekfStep(dt, z_z, new_sensors, new_flow, valid_sonar, &x_z);
-    
+
     // Translate back to full state matrix.
     (*x)(0) = x_x(0);
     (*x)(1) = x_y(0);
@@ -135,7 +135,7 @@ void KalmanSingle<states, measures>::init(const math::Vector<states>& x, float p
 }
 
 template <int states, int measures>
-void KalmanSingle<states, measures>::setParams(float sigma_acc, float sigma_baro, 
+void KalmanSingle<states, measures>::setParams(float sigma_acc, float sigma_baro,
                         float sigma_flow, float sigma_sonar,
                         float sigma_pos_noise, float sigma_vel_noise,
                         float sigma_acc_noise,
@@ -186,7 +186,7 @@ void KalmanSingle<states, measures>::update(float dt, const math::Vector<measure
 }
 
 void KalmanXY::createQ(float sigma_pos_noise, float sigma_vel_noise,
-                      float sigma_acc_noise, 
+                      float sigma_acc_noise,
                       float sigma_acc_bias, float sigma_baro_bias)
 {
     Q.zero();
@@ -197,7 +197,7 @@ void KalmanXY::createQ(float sigma_pos_noise, float sigma_vel_noise,
 }
 
 void KalmanZ::createQ(float sigma_pos_noise, float sigma_vel_noise,
-                      float sigma_acc_noise, 
+                      float sigma_acc_noise,
                       float sigma_acc_bias, float sigma_baro_bias)
 {
     Q.zero();
@@ -208,7 +208,7 @@ void KalmanZ::createQ(float sigma_pos_noise, float sigma_vel_noise,
     Q(4, 4) = sigma_baro_bias*sigma_baro_bias;
 }
 
-void KalmanXY::createR(float sigma_acc, float sigma_baro, 
+void KalmanXY::createR(float sigma_acc, float sigma_baro,
                       float sigma_flow, float sigma_sonar)
 {
     R.zero();
@@ -216,7 +216,7 @@ void KalmanXY::createR(float sigma_acc, float sigma_baro,
     R(1, 1) = sigma_flow*sigma_flow;
 }
 
-void KalmanZ::createR(float sigma_acc, float sigma_baro, 
+void KalmanZ::createR(float sigma_acc, float sigma_baro,
                       float sigma_flow, float sigma_sonar)
 {
     R.zero();
@@ -272,7 +272,7 @@ void KalmanXY::predictError(float dt, const math::Vector<2>& z,
     }
     if (new_flow)
     {
-        // Flow 
+        // Flow
         H(1, 1) = 1;
     }
 

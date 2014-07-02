@@ -361,6 +361,7 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
             /* optical flow */
             orb_check(optical_flow_sub, &updated);
+
             if (updated) {
                 orb_copy(ORB_ID(optical_flow), optical_flow_sub, &flow);
 
