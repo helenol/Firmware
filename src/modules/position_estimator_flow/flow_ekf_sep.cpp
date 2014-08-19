@@ -78,7 +78,7 @@ void FlowEKFSep::ekfStep(uint64_t t,
     Vector<3> sonar;
     sonar.zero();
     sonar(2) = z(6);
-    //sonar = rotmat*sonar;
+    sonar = rotmat*sonar;
 
     // Keep baro and sonar unrotated, because they're already in inertial frame.
 
@@ -231,6 +231,8 @@ void KalmanXY::stateTransition(float dt)
     F(0, 1) = dt;
     F(0, 2) = 1/2*dt*dt;
     F(1, 2) = dt;
+    // Assume constant-velocity model.
+    F(2, 2) = 0;
 
     x_pri = F*x_post;
 
@@ -244,6 +246,8 @@ void KalmanZ::stateTransition(float dt)
     F(0, 1) = dt;
     F(0, 2) = 1/2*dt*dt;
     F(1, 2) = dt;
+    // Assume constant-velocity model.
+    F(2, 2) = 0;
 
     x_pri = F*x_post;
 

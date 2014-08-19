@@ -14,6 +14,7 @@
 #include <string.h>
 #include <sys/prctl.h>
 #include <systemlib/err.h>
+#include <systemlib/perf_counter.h>
 #include <systemlib/systemlib.h>
 #include <termios.h>
 #include <unistd.h>
@@ -36,7 +37,8 @@ static bool thread_should_exit = false; /**< Deamon exit flag */
 static bool thread_running = false; /**< Deamon status flag */
 static int position_estimator_flow_task; /**< Handle of deamon task / thread */
 static bool verbose_mode = false;
-static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
+//static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
+static const uint32_t pub_interval = 0; // limit publish rate to 100 Hz
 
 
 extern "C" __EXPORT int position_estimator_flow_main(int argc, char *argv[]);
@@ -245,7 +247,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
     // Let's set up the main loop now.
     struct pollfd fds[1];
-    fds[0].fd = vehicle_attitude_sub;
+    fds[0].fd = optical_flow_sub;
+    //fds[0].fd = vehicle_attitude_sub;
     fds[0].events = POLLIN;
 
     // Keep attitude rates for gyro comp.
@@ -264,6 +267,11 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
     Vector<N_STATES> x;
     x.zero();
     hrt_abstime t = hrt_absolute_time();
+    hrt_abstime old_t = hrt_absolute_time();
+
+    float mean = 0.0f, prev_mean = 0.0f;
+    float stdev = 0.0f;
+    unsigned int k = 0;
 
     // State: [x, x_dot, y, y_dot, z, z_dot, bias_ax, bias_ay, bias_az, bias_b]
     // Coordinate system is NED (north, east, down).
@@ -273,7 +281,17 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 1000); // wait maximal 20 ms = 50 Hz minimum rate
+        old_t = t;
         t = hrt_absolute_time();
+
+        k++;
+        float xk = (t-old_t);
+        prev_mean = mean;
+        mean = prev_mean + (xk - prev_mean)/k;
+        stdev = stdev + (xk - prev_mean)*(xk - mean);
+
+        //printf("loop_time: %0.2f mean: %0.2f stdev: %0.2f\n", xk, mean, sqrt(stdev/(k-1)));
+
 
         if (ret < 0) {
             /* poll error */
@@ -381,6 +399,12 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                 //z(5) = flow.flow_raw_x/10.0f/flow_f*z_pos*flow_frame_rate + attr_x*z_pos;
                 //}
                 z(6) = flow.ground_distance_m;
+
+                if (flow.ground_distance_m <= 0.301 || x(2) >= 0.0f) {
+                    z(4) = 0.0f;
+                    z(5) = 0.0f;
+                }
+
                 if (params.sonar_prefilter >= 1.0f) {
                     valid_sonar = prefilter.isValid(t, flow.ground_distance_m);
                 } else {
@@ -439,9 +463,8 @@ int position_estimator_flow_thread_main(int argc, char *argv[])
                         vehicle_local_position_pub, &local_pos);
             //warnx("Published.");
         }
-
         // Sleep for 10 ms
-        usleep(2000);
+        //usleep(2000);
 
         //usleep(1000000); // 1 s
         //usleep(40000);

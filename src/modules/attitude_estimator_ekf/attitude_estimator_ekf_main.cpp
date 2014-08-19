@@ -61,6 +61,7 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_gps_position.h>
 #include <uORB/topics/vehicle_global_position.h>
+#include <uORB/topics/vehicle_vicon_position.h>
 #include <uORB/topics/parameter_update.h>
 #include <drivers/drv_hrt.h>
 
@@ -262,6 +263,7 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 	/* subscribe to control mode*/
 	int sub_control_mode = orb_subscribe(ORB_ID(vehicle_control_mode));
 
+
 	/* advertise attitude */
 	orb_advert_t pub_att = orb_advertise(ORB_ID(vehicle_attitude), &att);
 
@@ -299,6 +301,12 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 
 	/* register the perf counter */
 	perf_counter_t ekf_loop_perf = perf_alloc(PC_ELAPSED, "attitude_estimator_ekf");
+
+    // Okay, all horrible vicon hacks here:
+    bool using_vicon_yaw = false;
+    struct vehicle_vicon_position_s vicon_pose;
+    memset(&vicon_pose, 0, sizeof(vicon_pose));
+    int sub_vicon_pose = orb_subscribe(ORB_ID(vehicle_vicon_position));
 
 	/* Main loop*/
 	while (!thread_should_exit) {
@@ -354,6 +362,14 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					orb_copy(ORB_ID(vehicle_global_position), sub_global_pos, &global_pos);
 				}
 
+                if (using_vicon_yaw) {
+                    bool vicon_updated;
+                    orb_check(sub_vicon_pose, &vicon_updated);
+                    if (vicon_updated) {
+                        orb_copy(ORB_ID(vehicle_vicon_position), sub_vicon_pose, &vicon_pose);
+                    }
+                }
+
 				if (!initialized) {
 					// XXX disabling init for now
 					initialized = true;
@@ -371,7 +387,6 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					// }
 
 				} else {
-
 					perf_begin(ekf_loop_perf);
 
 					/* Calculate data time difference in seconds */
@@ -525,6 +540,11 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					att.pitch = euler[1];
 					att.yaw = euler[2] + ekf_params.mag_decl;
 
+                    // Horrible hack!
+                    if (using_vicon_yaw) {
+                        att.yaw = vicon_pose.yaw;
+                    }
+
 					att.rollspeed = x_aposteriori[0];
 					att.pitchspeed = x_aposteriori[1];
 					att.yawspeed = x_aposteriori[2];
@@ -545,6 +565,10 @@ const unsigned int loop_interval_alarm = 6500;	// loop interval in microseconds
 					R = R_decl * R_body;
 
 					/* copy rotation matrix */
+                    // Horrible hack again!
+                    if (using_vicon_yaw) {
+                        R.from_euler(att.roll, att.pitch, att.yaw);
+                    }
 					memcpy(&att.R[0][0], &R.data[0][0], sizeof(att.R));
 					att.R_valid = true;
 

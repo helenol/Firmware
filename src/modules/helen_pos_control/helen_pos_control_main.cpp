@@ -37,7 +37,8 @@ static bool thread_should_exit = false; /**< Deamon exit flag */
 static bool thread_running = false; /**< Deamon status flag */
 static int helen_pos_control_task; /**< Handle of deamon task / thread */
 static bool verbose_mode = false;
-static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
+//static const uint32_t pub_interval = 10000; // limit publish rate to 100 Hz
+static const uint32_t pub_interval = 0; // limit publish rate to 100 Hz
 
 
 extern "C" __EXPORT int helen_pos_control_main(int argc, char *argv[]);
@@ -119,8 +120,10 @@ void PositionControllerPID(const Vector<10>& refpoint,
                            const Matrix<3, 3>& Ki,
                            const Vector<3>& F_lim,
                            float m,
+                           float dt,
                            Vector<3>& e_i,
                            Matrix<3, 3>* R_des,
+                           Matrix<3, 3>& R_yaw,
                            float* thrust) {
 
     //  PD controller
@@ -146,13 +149,21 @@ void PositionControllerPID(const Vector<10>& refpoint,
     g_vect(2) = -9.81f;
 
     //float i_accum_gain = 0.01;
-    e_i(0) = e_i(0) + Ki(0, 0)*e_p(0);
-    e_i(1) = e_i(1) + Ki(1, 1)*e_p(1);
-    e_i(2) = e_i(2) + Ki(2, 2)*e_p(2);
+    Matrix<3, 3> R_yaw_trans;
+    R_yaw_trans = R_yaw.transposed();
+
+    Vector<3> e_p_body;
+    e_p_body = R_yaw_trans*e_p;
+    /*
+    e_i(0) = e_i(0) + Ki(0, 0)*e_p_body(0);
+    e_i(1) = e_i(1) + Ki(1, 1)*e_p_body(1);
+    e_i(2) = e_i(2) + Ki(2, 2)*e_p_body(2); */
+
+    e_i = e_i + Ki * e_p_body * dt;
 
     // desired Force vector in the worldframe
     Vector<3> F_des;
-    F_des = -(Kp*e_p + Kd*e_v + e_i + ff*m + g_vect*m);
+    F_des = -(Kp*e_p + Kd*e_v + R_yaw*e_i + ff*m + g_vect*m);
 
     if (fabsf(F_des(0)) >= F_lim(0)) {
         F_des(0) = sign(F_des(0))*F_lim(0);
@@ -173,7 +184,7 @@ void PositionControllerPID(const Vector<10>& refpoint,
     // desired thrust in body frame
     //*thrust = F_des.transposed()*z_b;
 
-    *thrust = F_des.length();
+    //*thrust = F_des.length();
 
     // desired body z axis
     z_B_des = F_des.normalized();
@@ -197,6 +208,27 @@ void PositionControllerPID(const Vector<10>& refpoint,
     (*R_des)(0, 2) = z_B_des(0);
     (*R_des)(1, 2) = z_B_des(1);
     (*R_des)(2, 2) = z_B_des(2);
+
+    //printf("R(2, 2) = %.4f\n", z_B_des(2));
+
+
+
+
+    if (z_B_des(2) < 0.1) {
+        *thrust = F_des(2);
+        //warnx("Bad because R(2, 2) = %f", z_B_des(2));
+    } else {
+        *thrust = F_des(2) / z_B_des(2);
+    }
+
+    // Clamp to +/- 10% from hover thrust.
+    float hover_thrust = -m*g_vect(2);
+    if (*thrust > hover_thrust * 1.1f) {
+        *thrust = hover_thrust * 1.1f;
+    }
+    if (*thrust < hover_thrust * 0.9f) {
+        *thrust = hover_thrust * 0.9f;
+    }
 }
 
 
@@ -352,6 +384,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
         } else if (ret > 0) {
             bool updated = false;
 
+            bool new_offset = false;
+
             /* parameter update */
             orb_check(parameter_update_sub, &updated);
 
@@ -379,7 +413,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             }
 
             float z_rc = 0.10;
-            float alpha = dt / (z_rc + dt);
+            float alpha = 1.0f;//dt / (z_rc + dt);
 
             if (fabs(z_filt) < 0.01 || dt < 0.0001) {
                 z_filt = local_pos.z;
@@ -420,6 +454,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             orb_check(set_lpos_sp_sub, &updated);
             if (updated) {
                 orb_copy(ORB_ID(set_local_position_setpoint), set_lpos_sp_sub, &local_pos_off);
+                new_offset = true;
             }
 
             // Crap to figure out refpoints.
@@ -432,6 +467,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 //refpoint(2) = local_pos.z;
                 //refpoint(9) = att.yaw;
                 e_i.zero();
+                sp_offset.zero();
                 altitude_enabled_before = true;
             }
             if (!control_mode.flag_control_altitude_enabled &&
@@ -452,6 +488,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 //refpoint(2) = local_pos.z;
                 //refpoint(9) = att.yaw;
                 e_i.zero();
+                sp_offset.zero();
                 position_enabled_before = true;
             }
             if (!control_mode.flag_control_position_enabled &&
@@ -474,12 +511,14 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     sp_move_rate(1) = manual.y * stick_scale * dt;
                 }
 
-                // Rotate back into world frame.
-                R_yaw.from_euler(0.0f, 0.0f, att.yaw);
-                sp_move_rate = R_yaw * sp_move_rate;
+                if (fabs(manual.y) > 0.1 || fabs(manual.x) > 0.1) {
+                    // Rotate back into world frame.
+                    R_yaw.from_euler(0.0f, 0.0f, att.yaw);
+                    sp_move_rate = R_yaw * sp_move_rate;
 
-                local_pos_sp.x += sp_move_rate(0);
-                local_pos_sp.y += sp_move_rate(1);
+                    local_pos_sp.x += sp_move_rate(0);
+                    local_pos_sp.y += sp_move_rate(1);
+                }
             }
 
             // Actual control loop.
@@ -490,19 +529,20 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 // Fill in matrices I guess? State?
                 state(0) = local_pos.x;
                 state(1) = local_pos.y;
-                //state(2) = local_pos.z;
+                state(2) = local_pos.z;
                 state(3) = local_pos.vx;
                 state(4) = local_pos.vy;
-                //state(5) = local_pos.vz;
-                state(2) = z_filt;
-                state(5) = z_vel_filt;
+                state(5) = local_pos.vz;
+                //state(2) = z_filt;
+                //state(5) = z_vel_filt;
 
                 // R! do R. Copy it from attitude.
                 memcpy(R.data, att.R, sizeof(R.data));
 
                 //sp_offset.zero();
-                /*
-                if (control_mode.flag_control_position_enabled) {
+
+                if (control_mode.flag_control_position_enabled &&
+                    new_offset) {
                     // Maybe look into not doing this ALL the time?
                     // R_yaw is already set from above.
                     //sp_offset.zero();
@@ -510,7 +550,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     sp_offset(1) = local_pos_off.y;
                     sp_offset(2) = local_pos_off.z;
                     sp_offset = R_yaw * sp_offset;
-                }*/
+                }
 
                 // More fun stuff: switch the pos by 0.5 meters every 5 seconds.
                 /*if (control_mode.flag_control_position_enabled &&
@@ -538,43 +578,68 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                         offset_state = 0;
                     }
 
-                    sp_offset = R_yaw * sp_offset;
+                    //sp_offset = R_yaw * sp_offset;
                     switch_time = t;
                 } */
 
-                if (control_mode.flag_control_position_enabled &&
+                /*if (control_mode.flag_control_position_enabled &&
                     t - switch_time > 5*1000000) {
-                    if (offset_state == 0) {
-                        Vector<3> new_offset;
-                        new_offset.zero();
-                        new_offset(0) = 1.0f;
-                        //sp_offset.zero();
-                        //sp_offset(0) = 1.0;
-                        //sp_offset(0) = 0.5;
-                        //sp_offset(1) = 0.5;
-                        //sp_offset(2) = 0.0;
-                        //sp_offset(2) = -0.25;
-                        //local_pos_sp.yaw += PI;
+                    switch (offset_state) {
+                      case 0:
+                      {
+                        sp_offset.zero();
+                        sp_offset(0) = -1.0f;
                         offset_state = 1;
-
-                        R_yaw.from_euler(0.0f, 0.0f, local_pos_sp.yaw);
-                        sp_offset += R_yaw * new_offset;
-                    } else if (offset_state == 1) {
-                        //sp_offset.zero();
-                        //sp_offset(0) = 1.0;
-                        local_pos_sp.yaw += PI/2;
+                      } break;
+                      case 1:
+                      {
+                        local_pos_sp.yaw = -PI/2;
+                        offset_state = 2;
+                      } break;
+                      case 2:
+                      {
+                        sp_offset.zero();
+                        sp_offset(0) = -1.0f;
+                        sp_offset(1) = -1.0f;
+                        offset_state = 3;
+                      } break;
+                      case 3:
+                      {
+                        local_pos_sp.yaw = 0;
+                        offset_state = 4;
+                      } break;
+                      case 4:
+                      {
+                        sp_offset.zero();
+                        sp_offset(1) = -1.0f;
+                        offset_state = 5;
+                      } break;
+                      case 5:
+                      {
+                        local_pos_sp.yaw = PI/2;
+                        offset_state = 6;
+                      } break;
+                      case 6:
+                      {
+                        sp_offset.zero();
+                        offset_state = 7;
+                      } break;
+                      case 7:
+                      {
+                        local_pos_sp.yaw = PI;
                         offset_state = 0;
-                    }
-                    if (local_pos_sp.yaw > PI) {
-                        local_pos_sp.yaw -= 2*PI;
-                    }
-                    if (local_pos_sp.yaw < -PI) {
-                        local_pos_sp.yaw += 2*PI;
-                    }
-
+                      } break;
+                    };
                     switch_time = t;
-                }
+                } */
 
+                /*local_pos_sp.yaw += PI/2;
+                        if (local_pos_sp.yaw > PI) {
+                            local_pos_sp.yaw -= 2*PI;
+                        }
+                        if (local_pos_sp.yaw < -PI) {
+                            local_pos_sp.yaw += 2*PI;
+                        }*/
 
                 // Set the refpoint from lpos settings and the offsets.
                 refpoint(0) = local_pos_sp.x + sp_offset(0);
@@ -605,20 +670,22 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                 }
                 //refpoint(2) = -1.0f;
 
+                R_yaw.from_euler(0.0f, 0.0f, att.yaw);
+
                 PositionControllerPID(refpoint, state, R, Kp, Kd, Ki,
-                                      F_lim, m, e_i, &R_des, &thrust);
+                                      F_lim, m, dt, e_i, &R_des, R_yaw, &thrust);
                 // Scale by the thrust scale, because thrust is not in Newtons,
                 // it's in magic units of magic.
                 thrust = thrust/thrust_scale;
 
-                float thrust_rc = 0.10;
-                float alpha = 1.0f;//dt / (thrust_rc + dt);
+                /*float thrust_rc = 0.10;
+                float alpha = dt / (thrust_rc + dt);
 
                 if (thrust_filt < 0.01 || dt < 0.0001) {
                     thrust_filt = thrust;
                 } else {
                     thrust_filt = alpha*thrust + (1-alpha)*thrust_filt;
-                }
+                } */
                 //x_vel_filt = alpha*x(3) + (1-alpha)*x_vel_filt;
                 //y_vel_filt = alpha*x(4) + (1-alpha)*y_vel_filt;
 
@@ -634,14 +701,16 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     euler_angles = R_des.to_euler();
                     att_sp.roll_body = euler_angles(0);
                     att_sp.pitch_body = euler_angles(1);
-                    att_sp.yaw_body = euler_angles(2);
+                    att_sp.yaw_body = local_pos_sp.yaw;//euler_angles(2);
+
+                    R_des.from_euler(att_sp.roll_body, att_sp.pitch_body, local_pos_sp.yaw);
 
                     memcpy(&att_sp.R_body[0][0], R_des.data, sizeof(att_sp.R_body));
                     att_sp.R_valid = true;
                 }
 
                 // Fill in the attitude setpoint from this info.
-                att_sp.thrust = thrust_filt;
+                att_sp.thrust = thrust;
                 //att_sp.thrust = thrust;
             } else {
                 /*refpoint(9) = att.yaw;
