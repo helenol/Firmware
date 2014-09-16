@@ -369,6 +369,7 @@ int helen_pos_control_thread_main(int argc, char *argv[])
     float thrust_filt = 0.0f;
     float z_filt = 0.0f;
     float z_vel_filt = 0.0f;
+    bool offset_valid = false;
 
     while (!thread_should_exit) {
         int ret = poll(fds, 1, 200); // wait maximal 20 ms = 50 Hz minimum rate
@@ -549,7 +550,8 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                     sp_offset(0) = local_pos_off.x;
                     sp_offset(1) = local_pos_off.y;
                     sp_offset(2) = local_pos_off.z;
-                    sp_offset = R_yaw * sp_offset;
+                    offset_valid = local_pos_off.yaw > 0.5;
+                    //sp_offset = R_yaw * sp_offset;
                 }
 
                 // More fun stuff: switch the pos by 0.5 meters every 5 seconds.
@@ -641,10 +643,17 @@ int helen_pos_control_thread_main(int argc, char *argv[])
                             local_pos_sp.yaw += 2*PI;
                         }*/
 
-                // Set the refpoint from lpos settings and the offsets.
-                refpoint(0) = local_pos_sp.x + sp_offset(0);
-                refpoint(1) = local_pos_sp.y + sp_offset(1);
-                refpoint(2) = local_pos_sp.z + sp_offset(2);
+                if (offset_valid) {
+                    // Set the refpoint from lpos settings and the offsets.
+                    refpoint(0) = sp_offset(0);
+                    refpoint(1) = sp_offset(1);
+                    refpoint(2) = local_pos_sp.z;
+                    //refpoint(2) = sp_offset(2);
+                } else {
+                    refpoint(0) = local_pos_sp.x;
+                    refpoint(1) = local_pos_sp.y;
+                    refpoint(2) = local_pos_sp.z;
+                }
                 refpoint(9) = local_pos_sp.yaw;//att.yaw;//local_pos_sp.yaw;
 
                 if (!control_mode.flag_control_position_enabled) {
@@ -747,16 +756,25 @@ int helen_pos_control_thread_main(int argc, char *argv[])
             local_pos_sp.z = refpoint(2);
             local_pos_sp.yaw = refpoint(9); */
 
-            local_pos_sp.x += sp_offset(0);
-            local_pos_sp.y += sp_offset(1);
-            local_pos_sp.z += sp_offset(2);
+            float temp_x, temp_y, temp_z;
+
+            if (offset_valid) {
+                temp_x = local_pos_sp.x;
+                temp_y = local_pos_sp.y;
+                temp_z = local_pos_sp.z;
+
+                local_pos_sp.x = sp_offset(0);
+                local_pos_sp.y = sp_offset(1);
+            }
 
             orb_publish(ORB_ID(vehicle_attitude_setpoint), att_sp_pub, &att_sp);
             orb_publish(ORB_ID(vehicle_local_position_setpoint), lpos_sp_pub, &local_pos_sp);
 
-            local_pos_sp.x -= sp_offset(0);
-            local_pos_sp.y -= sp_offset(1);
-            local_pos_sp.z -= sp_offset(2);
+            if (offset_valid) {
+                local_pos_sp.x = temp_x;
+                local_pos_sp.y = temp_y;
+                local_pos_sp.z = temp_z;
+            }
 
             //warnx("Published.");
         }

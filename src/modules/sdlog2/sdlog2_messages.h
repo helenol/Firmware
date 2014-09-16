@@ -330,6 +330,16 @@ struct log_GSN1_s {
 	uint8_t satellite_snr[16];			/**< Signal to noise ratio of satellite. 0 for none, 255 for max. */
 };
 
+
+/* --- LPSS - SET LOCAL POSITION SETPOINT --- */
+#define LOG_LPSS_MSG 28
+struct log_LPSS_s {
+    float x;
+    float y;
+    float z;
+    float yaw;
+};
+
 /********** SYSTEM MESSAGES, ID > 0x80 **********/
 
 /* --- TIME - TIME STAMP --- */
@@ -383,6 +393,8 @@ static const struct log_format_s log_formats[] = {
 	LOG_FORMAT(VICN, "ffffff",		"X,Y,Z,Roll,Pitch,Yaw"),
 	LOG_FORMAT(GSN0, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
 	LOG_FORMAT(GSN1, "BBBBBBBBBBBBBBBB",	"s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15"),
+    LOG_FORMAT(LPSS, "ffff",      "X,Y,Z,Yaw"),
+
 
 	/* system-level messages, ID >= 0x80 */
 	/* FMT: don't write format of format message, it's useless */

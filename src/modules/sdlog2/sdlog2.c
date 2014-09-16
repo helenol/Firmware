@@ -86,6 +86,7 @@
 #include <uORB/topics/estimator_status.h>
 #include <uORB/topics/system_power.h>
 #include <uORB/topics/servorail_status.h>
+#include <uORB/topics/set_local_position_setpoint.h>
 
 #include <systemlib/systemlib.h>
 #include <systemlib/param/param.h>
@@ -785,6 +786,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		struct actuator_controls_s act_controls;
 		struct vehicle_local_position_s local_pos;
 		struct vehicle_local_position_setpoint_s local_pos_sp;
+        struct set_local_position_setpoint_s set_local_pos;
 		struct vehicle_global_position_s global_pos;
 		struct position_setpoint_triplet_s triplet;
 		struct vehicle_vicon_position_s vicon_pos;
@@ -836,6 +838,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 			struct log_VICN_s log_VICN;
 			struct log_GSN0_s log_GSN0;
 			struct log_GSN1_s log_GSN1;
+            struct log_LPSS_s log_LPSS;
 		} body;
 	} log_msg = {
 		LOG_PACKET_HEADER_INIT(0)
@@ -869,6 +872,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 		int estimator_status_sub;
 		int system_power_sub;
 		int servorail_status_sub;
+        int set_local_pos_sub;
 	} subs;
 
 	subs.cmd_sub = orb_subscribe(ORB_ID(vehicle_command));
@@ -882,6 +886,7 @@ int sdlog2_thread_main(int argc, char *argv[])
 	subs.act_controls_sub = orb_subscribe(ORB_ID_VEHICLE_ATTITUDE_CONTROLS);
 	subs.local_pos_sub = orb_subscribe(ORB_ID(vehicle_local_position));
 	subs.local_pos_sp_sub = orb_subscribe(ORB_ID(vehicle_local_position_setpoint));
+    subs.set_local_pos_sub = orb_subscribe(ORB_ID(set_local_position_setpoint));
 	subs.global_pos_sub = orb_subscribe(ORB_ID(vehicle_global_position));
 	subs.triplet_sub = orb_subscribe(ORB_ID(position_setpoint_triplet));
 	subs.vicon_pos_sub = orb_subscribe(ORB_ID(vehicle_vicon_position));
@@ -1182,6 +1187,17 @@ int sdlog2_thread_main(int argc, char *argv[])
 			log_msg.body.log_VICN.yaw = buf.vicon_pos.yaw;
 			LOGBUFFER_WRITE_AND_COUNT(VICN);
 		}
+
+        /* --- SET LOCAL POSITION SETPOINT --- */
+        if (copy_if_updated(ORB_ID(set_local_position_setpoint), subs.set_local_pos_sub, &buf.set_local_pos)) {
+            log_msg.msg_type = LOG_LPSS_MSG;
+            log_msg.body.log_LPSS.x = buf.set_local_pos.x;
+            log_msg.body.log_LPSS.y = buf.set_local_pos.y;
+            log_msg.body.log_LPSS.z = buf.set_local_pos.z;
+            log_msg.body.log_LPSS.yaw = buf.set_local_pos.yaw;
+            LOGBUFFER_WRITE_AND_COUNT(LPSS);
+        }
+
 
 		/* --- FLOW --- */
 		if (copy_if_updated(ORB_ID(optical_flow), subs.flow_sub, &buf.flow)) {
